@@ -1,0 +1,13 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.13.4
+    container_name: zenos-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333" # REST API & Web UI dashboard
+      - "6334:6334" # gRPC API
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__ENABLE_CORS=true
+      - QDRANT__LOG_LEVEL=INFO
