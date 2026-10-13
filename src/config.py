@@ -36,6 +36,20 @@ class Settings(BaseSettings):
     chunk_overlap: int = Field(default=100, alias="CHUNK_OVERLAP")
     tokenizer_name: str = Field(default="cl100k_base", alias="TOKENIZER_NAME")
 
+    # Reranking Configuration (Phase 3)
+    cohere_api_key: Optional[str] = Field(default=None, alias="COHERE_API_KEY")
+    cohere_rerank_model: str = Field(default="rerank-multilingual-v3.0", alias="COHERE_RERANK_MODEL")
+    rerank_provider: str = Field(default="auto", alias="RERANK_PROVIDER")
+    rerank_local_model: str = Field(default="BAAI/bge-reranker-v2-m3", alias="RERANK_LOCAL_MODEL")
+    rerank_top_n: int = Field(default=5, alias="RERANK_TOP_N")
+    retrieval_candidates: int = Field(default=25, alias="RETRIEVAL_CANDIDATES")
+
+    # Generation Configuration (Phase 3)
+    anthropic_api_key: Optional[str] = Field(default=None, alias="ANTHROPIC_API_KEY")
+    anthropic_model: str = Field(default="claude-3-5-sonnet-latest", alias="ANTHROPIC_MODEL")
+    answer_temperature: float = Field(default=0.0, alias="ANSWER_TEMPERATURE")
+    answer_max_tokens: int = Field(default=1024, alias="ANSWER_MAX_TOKENS")
+
     # Storage Paths
     data_dir: Path = Field(default=Path("./data"), alias="DATA_DIR")
     cache_dir: Optional[Path] = Field(default=None, alias="CACHE_DIR")

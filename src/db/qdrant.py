@@ -75,7 +75,7 @@ class QdrantManager:
                 port=self.port,
                 grpc_port=self.grpc_port,
                 api_key=self.api_key,
-                prefer_grpc=False,
+                prefer_grpc=True,
                 timeout=30.0,
             )
 

@@ -19,6 +19,7 @@ console = Console()
 
 def setup_database(collection_name: str = None, recreate: bool = False, use_memory: bool = False):
     target_collection = collection_name or settings.qdrant_collection_name
+    recreate_style = "bold red" if recreate else "bold blue"
     console.print(
         Panel.fit(
             f"[bold cyan]Zenos Qdrant Initialization[/bold cyan]\n"
@@ -26,7 +27,7 @@ def setup_database(collection_name: str = None, recreate: bool = False, use_memo
             f"Dense Vector: [green]{settings.dense_vector_name}[/green] (dim: {settings.embedding_dimension})\n"
             f"Sparse Vector: [green]{settings.sparse_vector_name}[/green] (BM25 / Lexical)\n"
             f"Mode: {'In-Memory' if use_memory else f'{settings.qdrant_host}:{settings.qdrant_port}'}\n"
-            f"Recreate: [bold {'red' if recreate else 'blue'}]{recreate}[/bold]",
+            f"Recreate: [{recreate_style}]{recreate}[/{recreate_style}]",
             title="Database Setup",
         )
     )

@@ -65,3 +65,30 @@ class IngestionResult(BaseModel):
     num_chunks: int = 0
     success: bool = True
     error_message: Optional[str] = None
+
+
+class Citation(BaseModel):
+    """A single source reference extracted from a grounded answer."""
+
+    source_name: str = Field(description="Original filename or title of the cited source")
+    page_number: int = Field(description="1-indexed page number cited")
+    chunk_id: str = Field(description="Deterministic chunk id the citation resolves to")
+
+
+class GroundedAnswer(BaseModel):
+    """A generated answer bound to the retrieved context with verified citations."""
+
+    query: str = Field(description="The user question that produced this answer")
+    answer: str = Field(description="Generated answer text, with inline citations")
+    citations: List[Citation] = Field(
+        default_factory=list, description="Validated citations that map back to provided chunks"
+    )
+    context_chunk_ids: List[str] = Field(
+        default_factory=list, description="Chunk ids supplied to the generator as context"
+    )
+    grounded: bool = Field(
+        default=True, description="True when the answer carries at least one validated citation and is not a refusal"
+    )
+    refused: bool = Field(
+        default=False, description="True when the generator refused to answer (no supporting context)"
+    )
