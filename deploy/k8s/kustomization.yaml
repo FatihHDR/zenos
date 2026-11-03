@@ -5,5 +5,4 @@ resources:
   - nine-router-data.yaml
   - qdrant.yaml
   - nine-router.yaml
-  # Enable once the zenos-api image exists (PRD Phase 4, point 3):
-  # - api.yaml
+  - api.yaml

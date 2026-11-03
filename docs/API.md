@@ -511,6 +511,43 @@ for c in result.citations:
 
 ---
 
+## 5b. HTTP API (FastAPI) — Phase 4 poin 3
+
+Kode di `src/api/` (`schemas.py`, `deps.py`, `app.py`). Jalankan:
+
+```bash
+python scripts/serve.py --host 0.0.0.0 --port 8000
+# atau: PYTHONPATH=src .venv/bin/uvicorn api.app:app --host 0.0.0.0 --port 8000
+```
+
+Docs interaktif di `http://localhost:8000/docs`. Pipeline dimuat **lazy** pada request pertama
+(memuat BGE-M3 + reranker), lalu di-cache di `app.state`.
+
+| Method | Path | Body | Keterangan |
+| --- | --- | --- | --- |
+| GET | `/` | — | Info singkat |
+| GET | `/health` | — | Cek Qdrant (murah, tanpa memuat model) — dipakai readiness probe k8s |
+| GET | `/info` | — | Konfigurasi aktif (provider, model, reranker, candidates, top_n) |
+| POST | `/search` | `{"query": "...", "top_k": 5}` | Retrieval + rerank saja (tanpa LLM) |
+| POST | `/answer` | `{"query": "..."}` | Jawaban grounded + sitasi tervalidasi |
+| POST | `/answer/stream` | `{"query": "..."}` | **SSE**: event `delta` (teks), lalu `done` (citations, grounded, `ttft_ms`) |
+
+Contoh:
+
+```bash
+curl -s localhost:8000/health
+curl -s -X POST localhost:8000/search -H 'Content-Type: application/json' \
+  -d '{"query":"apa dasar pemrosesan data pribadi?"}'
+curl -s -X POST localhost:8000/answer -H 'Content-Type: application/json' \
+  -d '{"query":"apa dasar pemrosesan data pribadi?"}'
+curl -N -X POST localhost:8000/answer/stream -H 'Content-Type: application/json' \
+  -d '{"query":"apa dasar pemrosesan data pribadi?"}'
+```
+
+Batasan: belum ada autentikasi — jangan diekspos ke publik tanpa reverse proxy + auth.
+
+---
+
 ## 6. Catatan
 
 - **Urutan wajib**: `setup_db` → `ingest` → baru `evaluate_recall`. Evaluasi sebelum ingest
@@ -519,8 +556,9 @@ for c in result.citations:
   hanya untuk pengujian dalam satu proses (mis. `pytest`), bukan alur CLI end-to-end.
 - **Reset DB**: `setup_db.py --recreate` atau hapus folder `qdrant_storage`.
 - **Dashboard**: `http://localhost:6333/dashboard` (saat Qdrant Docker berjalan).
-- **Phase 4**: evaluasi otomatis (Ragas) + benchmark TTFT sudah tersedia di `src/evaluation`,
-  `scripts/evaluate_ragas.py`, dan `scripts/benchmark_ttft.py`. Yang **belum**: endpoint FastAPI.
+- **Phase 4**: evaluasi otomatis (Ragas) + benchmark TTFT tersedia di `src/evaluation`,
+  `scripts/evaluate_ragas.py`, dan `scripts/benchmark_ttft.py`; endpoint HTTP ada di
+  `src/api/` (FastAPI, lihat bagian 5b) dengan `Dockerfile` dan manifest `deploy/k8s/api.yaml`.
 - **Catatan dependency**: `langchain-community` di-pin ke `0.4.1` karena Ragas 0.4.3 masih
   mengimpor `langchain_community.chat_models.vertexai` yang dihapus pada 0.4.2.
 - **Provider LLM**: pilih lewat `LLM_PROVIDER`. `anthropic` butuh `ANTHROPIC_API_KEY`.

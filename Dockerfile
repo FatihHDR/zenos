@@ -12,7 +12,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# CPU-only torch: the default wheels pull ~9GB of CUDA libraries that are useless
+# on a CPU node. Install torch first so the requirements step keeps it.
+RUN pip install --upgrade pip \
+    && pip install torch --index-url https://download.pytorch.org/whl/cpu \
+    && pip install -r requirements.txt
 
 COPY pyproject.toml ./
 COPY src ./src

@@ -52,8 +52,18 @@ spec:
               value: openai
             - name: OPENAI_BASE_URL
               value: http://nine-router:20128/v1
+            - name: LLM_MODEL
+              value: smp/claude-haiku-5-5
             - name: HF_HOME
               value: /models
+            # Models are pre-seeded in the cache PVC; Hub round-trips stall from
+            # inside the cluster, so load strictly from the local cache.
+            - name: HF_HUB_OFFLINE
+              value: "1"
+            - name: TRANSFORMERS_OFFLINE
+              value: "1"
+            - name: HF_HUB_DISABLE_XET
+              value: "1"
           envFrom:
             - secretRef:
                 name: zenos-secrets
@@ -68,13 +78,13 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 30
-          # Models load lazily on first request; give the container room.
+          # BGE-M3 + reranker weights are ~4.5GiB in RAM once loaded.
           resources:
             requests:
               cpu: 250m
               memory: 1Gi
             limits:
-              memory: 4Gi
+              memory: 6Gi
       volumes:
         - name: model-cache
           persistentVolumeClaim:
