@@ -4,6 +4,7 @@ Usage:
     python scripts/ask.py --query "Apa saja asas Perlindungan Data Pribadi menurut UU PDP?" --show-context
     python scripts/ask.py --interactive
     python scripts/ask.py --query "..." --provider local --json
+    python scripts/ask.py --query "..." --stream
 """
 
 import argparse
@@ -49,11 +50,7 @@ def show_context(reranked):
     console.print(table)
 
 
-def show_answer(result):
-    title = "Jawaban (refusal)" if result.refused else "Jawaban"
-    style = "yellow" if result.refused else "white"
-    console.print(Panel(f"[{style}]{result.answer}[/{style}]", title=title))
-
+def show_citations(result):
     if result.citations:
         table = Table(title="Sitasi (tervalidasi)")
         table.add_column("Source", style="cyan")
@@ -65,6 +62,12 @@ def show_answer(result):
     else:
         console.print("[dim]Tidak ada sitasi tervalidasi.[/dim]")
 
+
+def show_answer(result):
+    title = "Jawaban (refusal)" if result.refused else "Jawaban"
+    style = "yellow" if result.refused else "white"
+    console.print(Panel(f"[{style}]{result.answer}[/{style}]", title=title))
+    show_citations(result)
     console.print(
         f"[dim]grounded={result.grounded}  refused={result.refused}  "
         f"context={len(result.context_chunk_ids)} chunk[/dim]"
@@ -81,12 +84,40 @@ def main():
     parser.add_argument("--provider", type=str, default=None, choices=["auto", "cohere", "local"], help="Backend reranker")
     parser.add_argument("--show-context", action="store_true", help="Tampilkan chunk hasil rerank")
     parser.add_argument("--json", action="store_true", help="Cetak hasil sebagai JSON")
+    parser.add_argument("--stream", action="store_true", help="Stream jawaban token-demi-token + tampilkan TTFT")
     parser.add_argument("--interactive", action="store_true", help="Mode tanya-jawab berulang")
     args = parser.parse_args()
 
     pipeline = build_pipeline(args.candidates, args.top_n, args.provider)
 
+    def run_stream(query: str):
+        import time
+
+        start = time.perf_counter()
+        reranked, stream = pipeline.answer_streaming(query)
+        first_token = None
+        parts = []
+        for delta in stream:
+            if first_token is None:
+                first_token = time.perf_counter()
+            parts.append(delta)
+            console.print(delta, end="", soft_wrap=True, highlight=False)
+        console.print()
+        answer = pipeline.generator.finalize(query, reranked, "".join(parts))
+        ttft_ms = ((first_token or time.perf_counter()) - start) * 1000
+        if args.show_context:
+            show_context(reranked)
+        show_citations(answer)
+        console.print(
+            f"[dim]TTFT {ttft_ms:.0f} ms | grounded={answer.grounded}  "
+            f"refused={answer.refused}  context={len(answer.context_chunk_ids)} chunk[/dim]"
+        )
+        return answer
+
     def run_one(query: str):
+        if args.stream:
+            run_stream(query)
+            return
         reranked, result = pipeline.answer_with_context(query)
         if args.json:
             console.print_json(data=result.model_dump())

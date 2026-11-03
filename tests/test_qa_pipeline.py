@@ -93,7 +93,7 @@ def _build_pipeline(top_n=1):
         db_manager=_seed_collection(),
         extractor=FakeExtractor(),
         reranker=FixedReranker(),
-        generator=GroundedGenerator(client=client),
+        generator=GroundedGenerator(client=client, provider="anthropic"),
         candidates=5,
         top_n=top_n,
     )

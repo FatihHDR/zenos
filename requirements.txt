@@ -16,3 +16,13 @@ pytest-asyncio>=0.23.0
 # Phase 3: reranking & grounded generation
 anthropic>=0.39.0
 cohere>=5.5.0
+openai>=1.40.0
+
+# Phase 4: evaluation (Ragas) & TTFT
+ragas>=0.4.3
+# Ragas 0.4.3 imports langchain_community.chat_models.vertexai, removed in 0.4.2
+langchain-community==0.4.1
+
+# Phase 4: REST API
+fastapi>=0.115
+uvicorn[standard]>=0.30

@@ -1,0 +1,17 @@
+.venv
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.commandcode
+qdrant_storage
+docs
+tests
+deploy
+data
+scripts
+*.tar
+*.md

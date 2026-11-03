@@ -45,8 +45,12 @@ class Settings(BaseSettings):
     retrieval_candidates: int = Field(default=25, alias="RETRIEVAL_CANDIDATES")
 
     # Generation Configuration (Phase 3)
+    llm_provider: str = Field(default="anthropic", alias="LLM_PROVIDER")
     anthropic_api_key: Optional[str] = Field(default=None, alias="ANTHROPIC_API_KEY")
     anthropic_model: str = Field(default="claude-3-5-sonnet-latest", alias="ANTHROPIC_MODEL")
+    openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
+    openai_base_url: Optional[str] = Field(default=None, alias="OPENAI_BASE_URL")
+    llm_model: Optional[str] = Field(default=None, alias="LLM_MODEL")
     answer_temperature: float = Field(default=0.0, alias="ANSWER_TEMPERATURE")
     answer_max_tokens: int = Field(default=1024, alias="ANSWER_MAX_TOKENS")
 

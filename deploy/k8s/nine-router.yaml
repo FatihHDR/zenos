@@ -1,0 +1,78 @@
+# 9router runs as `nine-router` (Kubernetes Service names must start with a letter,
+# so "9router" is not a valid Service name).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nine-router
+  namespace: zenos
+  labels:
+    app: nine-router
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nine-router
+  template:
+    metadata:
+      labels:
+        app: nine-router
+    spec:
+      containers:
+        - name: nine-router
+          image: decolua/9router:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 20128
+          env:
+            - name: PORT
+              value: "20128"
+            - name: HOSTNAME
+              value: 0.0.0.0
+            - name: DATA_DIR
+              value: /app/data
+            - name: INITIAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zenos-secrets
+                  key: INITIAL_PASSWORD
+                  optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: nine-router-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nine-router
+  namespace: zenos
+  labels:
+    app: nine-router
+spec:
+  type: NodePort
+  selector:
+    app: nine-router
+  ports:
+    - name: http
+      port: 20128
+      targetPort: http
+      nodePort: 30128

@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - nine-router-data.yaml
+  - qdrant.yaml
+  - nine-router.yaml
+  # Enable once the zenos-api image exists (PRD Phase 4, point 3):
+  # - api.yaml

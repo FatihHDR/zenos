@@ -1,0 +1,96 @@
+# Zenos API (PRD Phase 4, point 3 — FastAPI).
+# Build the image, load it into the kind node, then this scales to 1:
+#   docker build -t zenos-api:local .
+#   docker save zenos-api:local -o api.tar
+#   docker exec -i k8s-local-control-plane ctr -n k8s.io images import --snapshotter=overlayfs - < api.tar
+# (kind cannot pull from Docker Hub — see deploy/k8s/README.md.)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zenos-api-cache
+  namespace: zenos
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zenos-api
+  namespace: zenos
+  labels:
+    app: zenos-api
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: zenos-api
+  template:
+    metadata:
+      labels:
+        app: zenos-api
+    spec:
+      containers:
+        - name: api
+          image: zenos-api:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            # In-cluster service DNS (ClusterIP — no NodePort needed inside the cluster)
+            - name: QDRANT_HOST
+              value: qdrant
+            - name: QDRANT_PORT
+              value: "6333"
+            - name: LLM_PROVIDER
+              value: openai
+            - name: OPENAI_BASE_URL
+              value: http://nine-router:20128/v1
+            - name: HF_HOME
+              value: /models
+          envFrom:
+            - secretRef:
+                name: zenos-secrets
+                optional: true
+          volumeMounts:
+            - name: model-cache
+              mountPath: /models
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
+          # Models load lazily on first request; give the container room.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 4Gi
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: zenos-api-cache
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zenos-api
+  namespace: zenos
+  labels:
+    app: zenos-api
+spec:
+  selector:
+    app: zenos-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

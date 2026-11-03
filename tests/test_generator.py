@@ -2,6 +2,9 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
+from config import settings
 from generation.generator import GroundedGenerator
 from generation.prompts import (
     REFUSAL_TEXT,
@@ -78,7 +81,7 @@ def test_is_refusal():
 
 def test_generate_grounded_answer():
     client = _fake_client("Data pribadi wajib dilindungi [Source: legal_uu_pdp_2022.md, Pg 1].")
-    answer = GroundedGenerator(client=client).generate("Apa dasar?", _chunks())
+    answer = GroundedGenerator(client=client, provider="anthropic").generate("Apa dasar?", _chunks())
 
     assert answer.grounded is True
     assert answer.refused is False
@@ -89,7 +92,7 @@ def test_generate_grounded_answer():
 
 def test_generate_refusal_skips_api_when_no_context():
     client = MagicMock()
-    answer = GroundedGenerator(client=client).generate("Q", [])
+    answer = GroundedGenerator(client=client, provider="anthropic").generate("Q", [])
 
     assert answer.refused is True
     assert answer.grounded is False
@@ -98,7 +101,44 @@ def test_generate_refusal_skips_api_when_no_context():
 
 
 def test_generate_refusal_from_model():
-    answer = GroundedGenerator(client=_fake_client(REFUSAL_TEXT)).generate("Q", _chunks())
+    answer = GroundedGenerator(client=_fake_client(REFUSAL_TEXT), provider="anthropic").generate("Q", _chunks())
     assert answer.refused is True
     assert answer.grounded is False
     assert answer.citations == []
+
+
+def _fake_openai_client(text):
+    client = MagicMock()
+    client.chat.completions.create.return_value = MagicMock(
+        choices=[MagicMock(message=MagicMock(content=text))]
+    )
+    return client
+
+
+def test_generate_openai_provider_grounded():
+    client = _fake_openai_client("Data wajib dilindungi [Source: legal_uu_pdp_2022.md, Pg 1].")
+    answer = GroundedGenerator(client=client, provider="openai").generate("Apa dasar?", _chunks())
+
+    assert answer.grounded is True
+    assert [c.chunk_id for c in answer.citations] == ["legal_p1_c0"]
+    # OpenAI chat format: system + user messages
+    messages = client.chat.completions.create.call_args.kwargs["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[1]["role"] == "user"
+
+
+def test_openai_provider_accepts_aliases():
+    for alias in ("9router", "openai-compatible", "openrouter"):
+        generator = GroundedGenerator(client=MagicMock(), provider=alias)
+        assert generator.provider == alias
+
+
+def test_openai_provider_default_model_is_auto(monkeypatch):
+    monkeypatch.setattr(settings, "llm_model", None)
+    generator = GroundedGenerator(client=MagicMock(), provider="openai")
+    assert generator.model == "auto"
+
+
+def test_unknown_provider_raises():
+    with pytest.raises(ValueError):
+        GroundedGenerator(client=MagicMock(), provider="bogus")

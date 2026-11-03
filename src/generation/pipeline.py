@@ -1,7 +1,7 @@
 """End-to-end Phase 3 pipeline: hybrid retrieval -> rerank -> grounded generation."""
 
 import logging
-from typing import List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 from config import settings
 from db.qdrant import HybridSearchResult, QdrantManager
@@ -51,3 +51,9 @@ class GroundedQAPipeline:
     def answer(self, query: str) -> GroundedAnswer:
         """Retrieve, rerank to ``top_n``, and generate a cited answer."""
         return self.answer_with_context(query)[1]
+
+    def answer_streaming(self, query: str) -> Tuple[List[RerankResult], Iterator[str]]:
+        """Retrieve, rerank, and stream the answer deltas (for TTFT / progressive UI)."""
+        candidates = self.retrieve(query)
+        reranked = self.reranker.rerank(query, candidates, top_n=self.top_n)
+        return reranked, self.generator.stream(query, reranked)
