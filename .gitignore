@@ -50,4 +50,7 @@ htmlcov/
 *.swp
 *.swo
 
+# Command Code
+.commandcode/
+
 PRD.md
