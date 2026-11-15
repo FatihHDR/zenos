@@ -1,28 +1,40 @@
 # Zenos on Kubernetes (local kind / single node)
 
-Runs **Qdrant** and **9router** in the cluster. Access from the host uses the node
-IP + **NodePort** (see "Why NodePort" below).
+Runs **Qdrant** and **9router** in the cluster. From the host they are reached via
+**port-forward** to `127.0.0.1` (see "Why port-forward" below).
 
 | Component | In-cluster DNS | Host access (`.env`) |
 | --- | --- | --- |
-| Qdrant | `qdrant.zenos.svc:6333/6334` | `172.20.0.2:30633` / `30634` |
-| 9router | `nine-router.zenos.svc:20128` | `172.20.0.2:30128` |
+| Qdrant | `qdrant.zenos.svc:6333/6334` | `127.0.0.1:6333` / `6334` |
+| 9router | `nine-router.zenos.svc:20128` | `127.0.0.1:20128` |
 
 > 9router is deployed as `nine-router` because Kubernetes Service names must
 > start with a letter.
-> The node IP is stable for the cluster's lifetime; get it with `kubectl get nodes -o wide`.
 
-## Why NodePort, not hostPort
+## Why port-forward, not the node IP
+The Services are `NodePort`, but the **kind node's IP changes whenever the node
+container restarts** (observed: `172.20.0.2` → `172.20.0.3`), which silently
+breaks any `.env` that hard-codes it. Port-forwarding to `127.0.0.1` is stable
+and survives restarts:
+
+```bash
+kubectl -n zenos port-forward svc/nine-router 20128:20128
+kubectl -n zenos port-forward svc/qdrant 6333:6333 6334:6334
+```
+
+(9router dashboard: `http://127.0.0.1:20128/dashboard`)
+
+## Why not hostPort
 `hostPort` does not work on this host: the CNI portmap plugin issues
 `iptables -m multiport`, but the kernel (`7.2.11-zen1-1-zen`) has **no
 `xt_multiport`** module at all (`Extension multiport revision 0 not supported`),
-so pod sandboxes never get created (`FailedCreatePodSandBox`). NodePort is
-handled by kube-proxy instead and works.
+so pod sandboxes never get created (`FailedCreatePodSandBox`).
 
 ## Prerequisites
 - Cluster reachable via `kubectl` (this repo targets the local kind cluster `kind-k8s-local`).
 - StorageClass `standard` (kind `local-path`).
-- `kind` CLI — the node cannot reach Docker Hub, so images must be loaded locally.
+- `kind` CLI — image pulls work now that the node's DNS is fixed (see "Cluster DNS
+  note"); if a pull ever fails, load the image manually with `docker save` + `ctr import`.
 
 ## Deploy
 
@@ -73,13 +85,13 @@ kubectl -n zenos rollout status statefulset/qdrant
 kubectl -n zenos rollout status deployment/nine-router
 ```
 
-Then point `.env` at the node IP + NodePorts:
+Then point `.env` at the port-forwarded localhost:
 
 ```
-QDRANT_HOST=172.20.0.2
-QDRANT_PORT=30633
-QDRANT_GRPC_PORT=30634
-OPENAI_BASE_URL=http://172.20.0.2:30128/v1
+QDRANT_HOST=127.0.0.1
+QDRANT_PORT=6333
+QDRANT_GRPC_PORT=6334
+OPENAI_BASE_URL=http://127.0.0.1:20128/v1
 ```
 
 If seeding is skipped, 9router starts empty and providers/keys must be
@@ -97,13 +109,30 @@ kubectl -n kube-system get cm coredns -o yaml \
 kubectl -n kube-system rollout restart deployment coredns
 ```
 
+### Node resolver (affects image pulls, not pods)
+kubelet resolves registries using the **node's** `/etc/resolv.conf`, which Docker
+generates from the host's file at container creation. This node was created while
+Tailscale was active, so it had unreachable upstreams (`100.95.0.251-254`) →
+every pull timed out (`lookup registry-1.docker.io ... i/o timeout`, and
+`ImagePullBackOff` for anything new).
+
+```bash
+docker exec k8s-local-control-plane cat /etc/resolv.conf          # inspect
+docker exec k8s-local-control-plane sh -c \
+  'printf "nameserver 192.168.1.1\nnameserver 1.1.1.1\noptions ndots:0\n" > /etc/resolv.conf'
+```
+
+Docker rewrites this file on every container start, but it now regenerates from
+the host's current resolvers, so it self-corrects after a restart.
+
 ## Verify
 
 ```bash
 kubectl -n zenos get pods,svc,pvc
-curl -s http://172.20.0.2:30633/collections
-curl -s -o /dev/null -w '%{http_code}\n' http://172.20.0.2:30128/api/health     # 200
-python scripts/setup_db.py && python scripts/ask.py -q "..."                     # end-to-end
+# with both port-forwards running:
+curl -s http://127.0.0.1:6333/collections
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:20128/api/health     # 200
+python scripts/setup_db.py && python scripts/ask.py -q "..."                   # end-to-end
 ```
 
 ## Rollback

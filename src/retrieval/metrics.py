@@ -1,4 +1,4 @@
-"""Retrieval evaluation metrics for Phase 2 (Recall accuracy on top-25 candidates)."""
+"""Retrieval evaluation metrics for Phase 2/4 (Recall@k and MRR)."""
 
 from typing import Iterable, List, Optional, Sequence
 
@@ -59,6 +59,44 @@ def mean_recall_at_k(
         return 0.0
     total = sum(
         recall_at_k(ev["retrieved"], ev["relevant"], k=k) for ev in evaluations
+    )
+    return total / len(evaluations)
+
+
+def reciprocal_rank(
+    retrieved: Sequence[str],
+    relevant: Iterable[str],
+    k: Optional[int] = None,
+) -> float:
+    """Reciprocal rank of the first relevant item.
+
+    Returns ``1/rank`` of the highest-ranked relevant item, or ``0.0`` when no
+    relevant item appears in the top-k.  Unlike Recall@k, this penalises burying a
+    relevant chunk deep in the ranking, which is what the reranker is supposed to
+    fix.
+    """
+    if k is None:
+        k = len(retrieved)
+    k = max(0, min(k, len(retrieved)))
+    if k == 0:
+        return 0.0
+
+    relevant_set = set(relevant)
+    for position, item in enumerate(retrieved[:k], start=1):
+        if item in relevant_set:
+            return 1.0 / position
+    return 0.0
+
+
+def mean_reciprocal_rank(
+    evaluations: Sequence[dict],
+    k: Optional[int] = None,
+) -> float:
+    """Average reciprocal rank across ``{retrieved: [...], relevant: [...]}`` dicts."""
+    if not evaluations:
+        return 0.0
+    total = sum(
+        reciprocal_rank(ev["retrieved"], ev["relevant"], k=k) for ev in evaluations
     )
     return total / len(evaluations)
 

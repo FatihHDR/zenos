@@ -1,0 +1,504 @@
+openapi: 3.1.0
+
+info:
+  title: Zenos API
+  version: 0.1.0
+  summary: Hybrid RAG (dense+sparse RRF) + cross-encoder rerank + grounded, cited answers.
+  description: |
+    REST API untuk **Zenos**, sistem hybrid RAG. Alur tiap pertanyaan:
+
+    1. **Retrieve** — pencarian hybrid di Qdrant (dense `BAAI/bge-m3` + sparse BM25)
+       yang digabung dengan Reciprocal Rank Fusion.
+    2. **Rerank** — cross-encoder menyusun ulang kandidat, ambil `top_n` teratas.
+    3. **Generate** — LLM menyusun jawaban **hanya** dari konteks tersebut, dengan tag
+       sitasi `[Source: <nama>, Pg <n>]` per kalimat. Bila konteks tidak cukup, model
+       menolak menjawab.
+
+    Setiap sitasi **divalidasi ulang terhadap konteks** — sitasi yang tidak cocok
+    membuat `grounded=false`. Jadi `grounded` bukan sekadar klaim model.
+
+    **Autentikasi**: belum ada. Jangan diekspos ke publik tanpa reverse proxy.
+
+    **Catatan**: bila koleksi masih kosong, `/search` mengembalikan `results: []` dan
+    `/answer` menjawab refusal (`refused=true`) — bukan error.
+  contact:
+    name: Zenos
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8000
+    description: Lokal via `python scripts/serve.py`
+  - url: http://localhost:8010
+    description: Di dalam cluster via `kubectl -n zenos port-forward svc/zenos-api 8010:8000`
+  - url: http://zenos-api.zenos.svc.cluster.local:8000
+    description: Dari pod lain di namespace `zenos` (ClusterIP)
+
+tags:
+  - name: system
+    description: Status layanan dan konfigurasi aktif.
+  - name: retrieval
+    description: Pengambilan konteks (tanpa LLM).
+  - name: generation
+    description: Jawaban grounded bersitasi.
+
+security: []
+
+paths:
+  /:
+    get:
+      tags: [system]
+      summary: Info singkat layanan
+      operationId: getRoot
+      responses:
+        '200':
+          description: Nama layanan dan tautan berguna.
+          content:
+            application/json:
+              schema:
+                type: object
+                title: RootResponse
+                required: [name, docs, health]
+                properties:
+                  name: { type: string }
+                  docs: { type: string }
+                  health: { type: string }
+              example:
+                name: Zenos API
+                docs: /docs
+                health: /health
+
+  /health:
+    get:
+      tags: [system]
+      summary: Health probe (murah, tanpa memuat model)
+      description: |
+        Hanya mengecek koneksi Qdrant dan jumlah poin koleksi — **tidak** memuat
+        model embedding/reranker. Dipakai sebagai readiness/liveness probe di k8s.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Layanan siap.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                collection: zenos_docs
+                points: 0
+        '503':
+          description: Qdrant tidak dapat dihubungi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                detail: 'Qdrant unavailable: ...'
+
+  /info:
+    get:
+      tags: [system]
+      summary: Konfigurasi aktif
+      description: |
+        Menampilkan provider LLM, model, jenis reranker, dan parameter retrieval yang
+        sedang dipakai. **Memuat pipeline** pada panggilan pertama (beberapa detik).
+      operationId: getInfo
+      responses:
+        '200':
+          description: Konfigurasi efektif.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InfoResponse'
+              example:
+                provider: openai
+                model: smp/claude-haiku-5-5
+                reranker: LocalCrossEncoderReranker
+                candidates: 25
+                top_n: 5
+                collection: zenos_docs
+
+  /search:
+    post:
+      tags: [retrieval]
+      summary: Retrieval + rerank (tanpa LLM)
+      description: |
+        Mengembalikan chunk paling relevan beserta skor. Berguna untuk debugging
+        kualitas retrieval tanpa biaya/latensi LLM. `top_k` menimpa `top_n` default.
+      operationId: postSearch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+            example:
+              query: apa dasar pemrosesan data pribadi?
+      responses:
+        '200':
+          description: Kandidat terurut setelah rerank (kosong bila tidak ada yang cocok).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+              examples:
+                hits:
+                  value:
+                    query: apa dasar pemrosesan data pribadi?
+                    results:
+                      - chunk_id: legal_uu_pdp_2022.md::p1::c0
+                        score: 0.87
+                        original_score: 0.71
+                        source_name: legal_uu_pdp_2022.md
+                        page_number: 1
+                        text: Pemrosesan Data Pribadi wajib didasarkan pada...
+                empty:
+                  value:
+                    query: apa dasar pemrosesan data pribadi?
+                    results: []
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /answer:
+    post:
+      tags: [generation]
+      summary: Jawaban grounded bersitasi
+      description: |
+        Retrieval → rerank → generate. Jawaban memuat tag `[Source: ..., Pg N]` inline;
+        `citations` berisi referensi tervalidasi. Bila konteks tidak cukup,
+        `refused=true`, `grounded=false`, dan `citations` kosong.
+      operationId: postAnswer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerRequest'
+            example:
+              query: apa dasar pemrosesan data pribadi?
+      responses:
+        '200':
+          description: Jawaban (grounded atau refusal).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroundedAnswer'
+              examples:
+                grounded:
+                  value:
+                    query: apa dasar pemrosesan data pribadi?
+                    answer: >-
+                      Pemrosesan Data Pribadi wajib didasarkan pada persetujuan atau
+                      kewajiban hukum. [Source: legal_uu_pdp_2022.md, Pg 1]
+                    citations:
+                      - source_name: legal_uu_pdp_2022.md
+                        page_number: 1
+                        chunk_id: legal_uu_pdp_2022.md::p1::c0
+                    context_chunk_ids:
+                      - legal_uu_pdp_2022.md::p1::c0
+                    grounded: true
+                    refused: false
+                refusal:
+                  value:
+                    query: apa dasar pemrosesan data pribadi?
+                    answer: Saya tidak menemukan informasi ini di dalam dokumen yang tersedia.
+                    citations: []
+                    context_chunk_ids: []
+                    grounded: false
+                    refused: true
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /answer/stream:
+    post:
+      tags: [generation]
+      summary: Jawaban grounded (streaming SSE)
+      description: |
+        Sama seperti `/answer`, tetapi jawaban dikirim bertahap sebagai
+        **Server-Sent Events** (`text/event-stream`), diikuti satu event penutup.
+
+        Setiap event berformat `data: <json>\n\n`:
+
+        * `delta` — potongan teks jawaban:
+          `{"type":"delta","text":"..."}`
+        * `done` — penutup, berisi metadata:
+          `{"type":"done","ttft_ms":242.9,"grounded":true,"refused":false,`
+          `"citations":[...],"context_chunk_ids":[...]}`
+
+        `ttft_ms` = waktu dari mulai request sampai token pertama (retrieval + rerank
+        + first token). Sitasi baru tersedia di event `done`.
+      operationId: postAnswerStream
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerRequest'
+            example:
+              query: apa dasar pemrosesan data pribadi?
+      responses:
+        '200':
+          description: Aliran event SSE (`delta`… lalu `done`).
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Urutan event `delta` diakhiri satu event `done`.
+                  Lihat `StreamDeltaEvent` dan `StreamDoneEvent`.
+              examples:
+                eventStream:
+                  summary: Bentuk mentah body
+                  value: |
+                    data: {"type": "delta", "text": "Pemrosesan Data Pribadi wajib "}
+
+                    data: {"type": "delta", "text": "didasarkan pada persetujuan."}
+
+                    data: {"type": "done", "ttft_ms": 242.9, "grounded": true, "refused": false, "citations": [{"source_name": "legal_uu_pdp_2022.md", "page_number": 1, "chunk_id": "legal_uu_pdp_2022.md::p1::c0"}], "context_chunk_ids": ["legal_uu_pdp_2022.md::p1::c0"]}
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  responses:
+    ValidationError:
+      description: Body request tidak valid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+          example:
+            detail:
+              - type: string_too_short
+                loc: [body, query]
+                msg: String should have at least 1 character
+                input: ''
+
+  schemas:
+    SearchRequest:
+      type: object
+      title: SearchRequest
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          description: Query teks.
+        top_k:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 50
+          default: null
+          description: Jumlah hasil setelah rerank (menimpa `top_n` default).
+
+    SearchHit:
+      type: object
+      title: SearchHit
+      required: [chunk_id, score, text]
+      properties:
+        chunk_id:
+          type: string
+          description: ID deterministik chunk (UUID5 dari chunk id).
+        score:
+          type: number
+          format: float
+          description: Skor setelah rerank.
+        original_score:
+          type: [number, 'null']
+          format: float
+          description: Skor fusion (RRF) sebelum rerank.
+        source_name:
+          type: [string, 'null']
+          description: Nama file/dokumen sumber.
+        page_number:
+          type: [integer, 'null']
+          description: Nomor halaman (1-indexed) bila ada.
+        text:
+          type: string
+          description: Isi chunk.
+
+    SearchResponse:
+      type: object
+      title: SearchResponse
+      required: [query, results]
+      properties:
+        query:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchHit'
+
+    AnswerRequest:
+      type: object
+      title: AnswerRequest
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          description: Pertanyaan.
+        top_k:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 50
+          default: null
+          description: Jumlah chunk konteks setelah rerank.
+
+    Citation:
+      type: object
+      title: Citation
+      required: [source_name, page_number, chunk_id]
+      properties:
+        source_name:
+          type: string
+          description: Nama file/dokumen yang dikutip.
+        page_number:
+          type: integer
+          description: Nomor halaman (1-indexed) yang dikutip.
+        chunk_id:
+          type: string
+          description: Chunk id tempat sitasi merujuk.
+
+    GroundedAnswer:
+      type: object
+      title: GroundedAnswer
+      required: [query, answer]
+      properties:
+        query:
+          type: string
+          description: Pertanyaan yang menghasilkan jawaban ini.
+        answer:
+          type: string
+          description: Teks jawaban, dengan tag sitasi inline.
+        citations:
+          type: array
+          default: []
+          items:
+            $ref: '#/components/schemas/Citation'
+          description: Sitasi tervalidasi (harus cocok dengan konteks yang diberikan).
+        context_chunk_ids:
+          type: array
+          default: []
+          items:
+            type: string
+          description: Chunk id yang dipakai sebagai konteks.
+        grounded:
+          type: boolean
+          default: true
+          description: True bila ada minimal satu sitasi tervalidasi dan bukan refusal.
+        refused:
+          type: boolean
+          default: false
+          description: True bila model menolak menjawab (konteks tidak cukup).
+
+    HealthResponse:
+      type: object
+      title: HealthResponse
+      required: [status, collection, points]
+      properties:
+        status:
+          type: string
+          description: Selalu `ok` saat 200.
+        collection:
+          type: string
+          description: Nama koleksi Qdrant.
+        points:
+          type: integer
+          description: Jumlah poin di koleksi (0 = belum ada data ter-ingest).
+
+    InfoResponse:
+      type: object
+      title: InfoResponse
+      required: [provider, model, reranker, candidates, top_n, collection]
+      properties:
+        provider:
+          type: string
+          description: Provider LLM aktif (`anthropic` atau `openai`).
+        model:
+          type: string
+          description: Nama model yang dipakai.
+        reranker:
+          type: string
+          description: Kelas reranker aktif.
+        candidates:
+          type: integer
+          description: Jumlah kandidat yang diambil sebelum rerank.
+        top_n:
+          type: integer
+          description: Jumlah chunk konteks default setelah rerank.
+        collection:
+          type: string
+          description: Nama koleksi Qdrant.
+
+    StreamDeltaEvent:
+      type: object
+      title: StreamDeltaEvent
+      required: [type, text]
+      description: Potongan teks jawaban.
+      properties:
+        type:
+          type: string
+          const: delta
+        text:
+          type: string
+
+    StreamDoneEvent:
+      type: object
+      title: StreamDoneEvent
+      required: [type, ttft_ms, grounded, refused, citations, context_chunk_ids]
+      description: Event penutup berisi metadata jawaban.
+      properties:
+        type:
+          type: string
+          const: done
+        ttft_ms:
+          type: number
+          format: float
+          description: Waktu (ms) hingga token pertama, termasuk retrieval + rerank.
+        grounded:
+          type: boolean
+        refused:
+          type: boolean
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+        context_chunk_ids:
+          type: array
+          items:
+            type: string
+
+    Error:
+      type: object
+      title: Error
+      required: [detail]
+      properties:
+        detail:
+          type: string
+          description: Pesan error.
+
+    HTTPValidationError:
+      type: object
+      title: HTTPValidationError
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+
+    ValidationError:
+      type: object
+      title: ValidationError
+      required: [loc, msg, type]
+      properties:
+        loc:
+          type: array
+          items:
+            type: [string, integer]
+        msg:
+          type: string
+        type:
+          type: string
+        input:
+          description: Nilai input yang ditolak (opsional).

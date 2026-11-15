@@ -5,8 +5,10 @@ import pytest
 from retrieval.metrics import (
     format_recall_report,
     mean_recall_at_k,
+    mean_reciprocal_rank,
     precision_at_k,
     recall_at_k,
+    reciprocal_rank,
 )
 
 
@@ -53,6 +55,31 @@ def test_format_recall_report_smoke():
     report = format_recall_report(evals, k=25)
     assert "Query" in report
     assert "Recall@25" in report
+
+
+def test_reciprocal_rank_uses_first_relevant_position():
+    assert reciprocal_rank(["a", "b", "c"], ["c"]) == pytest.approx(1 / 3)
+    assert reciprocal_rank(["a", "b"], ["a"]) == pytest.approx(1.0)
+
+
+def test_reciprocal_rank_ignores_relevant_items_beyond_k():
+    assert reciprocal_rank(["a", "b", "c"], ["c"], k=2) == 0.0
+
+
+def test_reciprocal_rank_edge_cases():
+    assert reciprocal_rank(["a", "b"], []) == 0.0
+    assert reciprocal_rank([], ["a"]) == 0.0
+    assert reciprocal_rank(["a"], ["a"], k=0) == 0.0
+
+
+def test_mean_reciprocal_rank():
+    evals = [
+        {"retrieved": ["a", "b"], "relevant": ["a"]},
+        {"retrieved": ["x", "y"], "relevant": ["y"]},
+        {"retrieved": ["p", "q"], "relevant": ["z"]},
+    ]
+    assert mean_reciprocal_rank(evals) == pytest.approx(0.5)
+    assert mean_reciprocal_rank([], k=5) == 0.0
 
 
 def test_eval_set_well_formed():

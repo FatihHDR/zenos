@@ -411,6 +411,20 @@ python scripts/evaluate_recall.py [--k 25] [--collection NAME] [--mode hybrid] [
 
 Memakai eval set dari `data/eval/build_eval_set.py` dan mencetak tabel Recall@k per query + mean.
 
+**Korpus & ground truth.** Korpus di `data/sample_docs/` dibangun ulang oleh
+`scripts/fetch_corpus.py` dari sumber publik: teks lengkap UU No. 27/2022 (peraturan
+perundang-undangan tidak berhak cipta) dan 17 artikel Wikipedia berbahasa Inggris
+(CC BY-SA 4.0) — total **223 chunk / 101k token**, termasuk satu PDF multi-halaman untuk
+menguji sitasi per halaman.
+
+Ground truth eval set **tidak lagi men-*hardcode*** `doc_id`: tiap pertanyaan menyimpan
+*anchor phrase* verbatim yang diresolusikan ke `chunk_id` saat runtime oleh
+`data/eval/sample_corpus.py`. Alasannya: `doc_id` adalah hash isi file, jadi id yang
+di-*hardcode* jadi basi begitu file korpus disentuh — dan karena id basi hanya "tidak
+cocok", recall ambruk ke 0 tanpa error apa pun. Sekarang anchor yang hilang **melempar
+error**. `tests/test_eval_set.py` menjaga korpus tidak menyusut (<100 chunk) dan tidak ada
+hash `doc_id` yang kembali di-*hardcode*.
+
 ### `scripts/ask.py` (Phase 3)
 
 ```bash
@@ -544,6 +558,10 @@ curl -N -X POST localhost:8000/answer/stream -H 'Content-Type: application/json'
   -d '{"query":"apa dasar pemrosesan data pribadi?"}'
 ```
 
+**Spec OpenAPI 3.1** ada di `docs/openapi.yaml` (dokumentasi lengkap, termasuk format
+SSE). FastAPI juga menyediakan spec otomatis di `/openapi.json` dan UI di `/docs`.
+Dijaga dari *drift* oleh `tests/test_openapi_spec.py`.
+
 Batasan: belum ada autentikasi — jangan diekspos ke publik tanpa reverse proxy + auth.
 
 ---
@@ -565,14 +583,23 @@ Batasan: belum ada autentikasi — jangan diekspos ke publik tanpa reverse proxy
   `openai` memakai endpoint OpenAI-compatible (`OPENAI_BASE_URL` + `OPENAI_API_KEY` +
   `LLM_MODEL`) — berguna untuk router murah (mis. 9router) atau Ollama lokal.
 - **9router & Qdrant di Kubernetes** (kind `kind-k8s-local`, namespace `zenos`): Qdrant
-  (StatefulSet+PVC) dan 9router (Deployment `nine-router`+PVC+Secret) diekspos via
-  **NodePort** — akses host: `172.20.0.2:30633`/`30634` (Qdrant) dan `172.20.0.2:30128`
-  (9router). Manifest di `deploy/k8s/` (lihat README-nya). Catatan: **hostPort tidak bisa
-  dipakai** di kernel ini (tanpa `xt_multiport`) → makanya NodePort. Data 9router
-  (`~/.9router`) dimigrasi ke PVC.
+  (StatefulSet+PVC) dan 9router (Deployment `nine-router`+PVC+Secret) berjalan di cluster.
+  Akses dari host lewat **port-forward** ke `127.0.0.1` (bukan IP node — IP node kind
+  **berubah tiap container restart**, mis. `172.20.0.2` → `172.20.0.3`, sehingga `.env`
+  yang menunjuk IP akan rusak diam-diam):
+
+  ```bash
+  kubectl -n zenos port-forward svc/nine-router 20128:20128
+  kubectl -n zenos port-forward svc/qdrant 6333:6333 6334:6334
+  ```
+
+  Dashboard 9router: `http://127.0.0.1:20128/dashboard`. Manifest di `deploy/k8s/`
+  (lihat README-nya; di sana juga dijelaskan kenapa `hostPort` tidak bisa dipakai di
+  kernel ini dan kenapa DNS node sempat memblokir image pull). Data 9router
+  (`~/.9router`) sudah dimigrasi ke PVC.
   **Sumopod** terdaftar sebagai provider custom (`openai-compatible`, prefix `smp`,
   baseUrl `https://ai.sumopod.com/v1`); model Claude-nya `smp/claude-haiku-5-5` dan
   `smp/claude-sonnet-5-5`. Combo `zenos-free` (model free OpenCode `oc/*`) tersedia
   sebagai fallback. Set `.env`: `LLM_PROVIDER=openai`,
-  `OPENAI_BASE_URL=http://172.20.0.2:30128/v1`, `OPENAI_API_KEY=<Default Key dashboard>`,
+  `OPENAI_BASE_URL=http://127.0.0.1:20128/v1`, `OPENAI_API_KEY=<Default Key dashboard>`,
   `LLM_MODEL=smp/claude-haiku-5-5`.

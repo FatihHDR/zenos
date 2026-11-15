@@ -42,7 +42,9 @@ class Settings(BaseSettings):
     rerank_provider: str = Field(default="auto", alias="RERANK_PROVIDER")
     rerank_local_model: str = Field(default="BAAI/bge-reranker-v2-m3", alias="RERANK_LOCAL_MODEL")
     rerank_top_n: int = Field(default=5, alias="RERANK_TOP_N")
+    rerank_enabled: bool = Field(default=True, alias="RERANK_ENABLED")
     retrieval_candidates: int = Field(default=25, alias="RETRIEVAL_CANDIDATES")
+    retrieval_mode: str = Field(default="hybrid", alias="RETRIEVAL_MODE")
 
     # Generation Configuration (Phase 3)
     llm_provider: str = Field(default="anthropic", alias="LLM_PROVIDER")

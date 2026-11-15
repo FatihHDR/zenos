@@ -1,113 +1,119 @@
-"""Evaluation datasets for Phase 2: hybrid retrieval recall validation.
+"""Evaluation dataset for the retrieval and generation experiments.
 
-Each entry maps a natural-language query to the set of *document chunks* that
-should be retrieved for it (the ground truth).  The relevant ids are the
-deterministic ``chunk_id`` values produced by :class:`~ingestion.chunker.TokenChunker`
-(``<doc_id>_p<page>_c<chunk>``), which are also stored in the Qdrant payload as
-``chunk_id``, so relevance can be checked directly against retrieval output.
+Ground truth is declared as **anchor phrases**, never as hardcoded chunk ids.
+``doc_id`` is a SHA-256 hash of a corpus file's contents, so the previous
+hardcoded ids went stale as soon as a corpus file was edited — and because a
+stale id simply never matches, recall silently collapsed to 0 instead of
+erroring. Anchors are resolved against the corpus at call time, so a stale
+ground truth raises instead.
 
-The doc ids are deterministic SHA-256 hashes computed by
-``DocumentParser.compute_doc_id`` from the file name + content, so the ids below
-stay valid as long as the bundled sample files are unchanged.  They can be
-regenerated with::
+Anchor rules
+------------
+* Copy the phrase **verbatim from the chunk body** (whitespace is normalised, so
+  PDF line wrapping is fine).
+* Never anchor on an article *title*: the corpus header page lists every article
+  title, so title anchors also match that header chunk.
+* Keep anchors long enough to be distinctive; the resolution report printed by
+  ``python data/eval/build_eval_set.py`` shows how many chunks each one matches.
 
-    python data/eval/build_eval_set.py
+Corpus: ``data/sample_docs/`` (UU PDP No. 27/2022 + English Wikipedia memory
+articles + a small PDF). Rebuild it with ``python scripts/fetch_corpus.py``.
 """
 
 from typing import Dict, List
 
-# Deterministic doc ids for the bundled sample documents (see module docstring).
-LEGAL_DOC_ID = "legal_uu_pdp_2022_4cc242f7486b7104"
-OS_VMEM_DOC_ID = "os_virtual_memory_4f264d95739fc9aa"
-OS_PAGING_DOC_ID = "os_paging_overview_b9c77b1928a2de50"
+from sample_corpus import load_corpus, resolve_anchors
 
-
-def _chunk_id(doc_id: str, page: int, chunk: int) -> str:
-    return f"{doc_id}_p{page}_c{chunk}"
+# fmt: off
+QUESTIONS: List[Dict[str, object]] = [
+    # --- Indonesian statute: UU No. 27/2022 (UU PDP) ---
+    {
+        "query": "Apa saja asas Pelindungan Data Pribadi menurut UU PDP?",
+        "anchors": ["Pasal 3 Undang-Undang ini berasaskan"],
+        "evidence": "Pasal 3 — asas: pelindungan, kepastian hukum, kepentingan umum, dst.",
+    },
+    {
+        "query": "Siapa yang dimaksud dengan Pengendali Data Pribadi?",
+        "anchors": ["Pengendali Data Pribadi adalah"],
+        "evidence": "Pasal 1 — definisi Pengendali Data Pribadi.",
+    },
+    {
+        "query": "Sanksi administratif apa yang dikenakan kepada Pengendali Data Pribadi?",
+        "anchors": ["Sanksi administratif sebagaimana dimaksud pada ayat (1) berupa"],
+        "evidence": "Pasal 57 — peringatan tertulis, penghentian sementara, penghapusan data, denda.",
+    },
+    # --- English: virtual memory / paging ---
+    {
+        "query": "Apa manfaat utama virtual memory?",
+        "anchors": ["idealized abstraction of the storage resources"],
+        "evidence": "Wikipedia 'Virtual memory' — abstraksi sumber daya penyimpanan.",
+    },
+    {
+        "query": "Apa itu Translation Lookaside Buffer dan bedanya TLB hit dengan TLB miss?",
+        "anchors": ["Upon each virtual memory reference, the hardware checks the TLB"],
+        "evidence": "Wikipedia 'Translation lookaside buffer' — jalur TLB hit vs TLB miss.",
+    },
+    {
+        "query": "Bagaimana urutan penanganan page fault oleh sistem operasi?",
+        "anchors": ["transparently retrying the instruction that caused the page fault"],
+        "evidence": "Wikipedia 'Page fault' — muat halaman, perbarui page table, ulangi instruksi.",
+    },
+    {
+        "query": "Bagaimana MMU menerjemahkan alamat virtual menjadi alamat fisik?",
+        "anchors": ["computer hardware unit that examines all references to memory"],
+        "evidence": "Wikipedia 'Memory management unit' — peran MMU dalam address translation.",
+    },
+    {
+        "query": "Apa perbedaan page dengan page frame?",
+        "anchors": ["Similarly, a page frame is the smallest fixed-length contiguous block of physical memory"],
+        "evidence": "Wikipedia 'Page (computer memory)' — page = virtual, page frame = fisik.",
+    },
+    # --- Negative control: must be refused, not answered ---
+    {
+        "query": "process scheduling mechanism in operating systems",
+        "anchors": [],
+        "evidence": "Negative control: 'process scheduling' occurs in 0 corpus chunks.",
+    },
+]
+# fmt: on
 
 
 def build_sample_eval_set() -> List[Dict[str, object]]:
-    """Return the bundled recall-evaluation set for the sample documents.
+    """Resolve the anchors against the corpus and return the eval set.
 
-    Chunk layout of the sample corpus (chunk_size=512, overlap=100):
-
-    * ``legal_uu_pdp_2022`` — p1_c0: Pasal 3 (asas) + Pasal 4 (jenis data)
-      + start of Pasal 20; p1_c1: remainder of Pasal 20 (dasar pemrosesan).
-    * ``os_virtual_memory`` — p1_c0: sections 9.1–9.4 (benefits, paging HW,
-      TLB, start of page-fault seq); p1_c1: remainder of section 9.4.
-    * ``os_paging_overview`` (PDF) — p1_c0: section 1; p2_c1: section 2
-      (chunk indices are global across pages, so page 2 starts at ``c1``).
+    Raises ValueError if any anchor is missing, i.e. if the ground truth no longer
+    matches the corpus.
     """
-    return [
-        # --- Legal / UU PDP ---
-        {
-            "query": "Apa saja asas Perlindungan Data Pribadi menurut UU PDP?",
-            "relevant": [_chunk_id(LEGAL_DOC_ID, 1, 0)],
-        },
-        {
-            "query": "Data pribadi yang bersifat spesifik itu apa saja?",
-            "relevant": [_chunk_id(LEGAL_DOC_ID, 1, 0)],
-        },
-        {
-            "query": "Apa dasar pemrosesan Data Pribadi oleh pengendali data?",
-            "relevant": [
-                _chunk_id(LEGAL_DOC_ID, 1, 0),
-                _chunk_id(LEGAL_DOC_ID, 1, 1),
-            ],
-        },
-        # --- OS: virtual memory ---
-        {
-            "query": "Keuntungan virtual memory seperti large address space dan demand paging",
-            "relevant": [_chunk_id(OS_VMEM_DOC_ID, 1, 0)],
-        },
-        {
-            "query": "Apa itu Translation Lookaside Buffer dan bedanya TLB hit dengan TLB miss?",
-            "relevant": [_chunk_id(OS_VMEM_DOC_ID, 1, 0)],
-        },
-        {
-            "query": "Bagaimana urutan penanganan page fault oleh kernel?",
-            "relevant": [
-                _chunk_id(OS_VMEM_DOC_ID, 1, 0),
-                _chunk_id(OS_VMEM_DOC_ID, 1, 1),
-            ],
-        },
-        # --- OS: paging (PDF, multi-page) ---
-        {
-            "query": "Bagaimana cara kerja paging dan address translation dengan MMU?",
-            "relevant": [
-                _chunk_id(OS_PAGING_DOC_ID, 1, 0),
-                _chunk_id(OS_PAGING_DOC_ID, 2, 1),
-            ],
-        },
-        {
-            "query": "Apa perbedaan page dengan page frame?",
-            "relevant": [_chunk_id(OS_PAGING_DOC_ID, 1, 0)],
-        },
-        # --- Negative control: no relevant chunk in the corpus ---
-        {
-            "query": "process scheduling mechanism in operating systems",
-            "relevant": [],
-        },
-    ]
+    chunks = load_corpus()
+    eval_set: List[Dict[str, object]] = []
+    for item in QUESTIONS:
+        query = str(item["query"])
+        anchors = list(item["anchors"])  # type: ignore[arg-type]
+        eval_set.append(
+            {
+                "query": query,
+                "relevant": resolve_anchors(chunks, anchors, question=query),
+                "evidence": item["evidence"],
+                "anchors": anchors,
+            }
+        )
+    return eval_set
 
 
-if __name__ == "__main__":  # pragma: no cover - convenience regenerator
-    import sys
-    from pathlib import Path
-
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
-    from ingestion.parser import DocumentParser
-    from ingestion.chunker import TokenChunker
-
-    parser = DocumentParser()
-    chunker = TokenChunker()
-    sample_dir = Path(__file__).parent.parent / "sample_docs"
-    print("Deterministic sample-corpus ids:\n")
-    for path in sorted(sample_dir.iterdir()):
-        if path.is_file():
-            doc = parser.parse_file(path)
-            chunks = chunker.chunk_document(doc)
-            print(f"{path.name}")
-            print(f"  doc_id: {doc.doc_id}")
-            for c in chunks:
-                print(f"    {c.chunk_id}  ({c.metadata.token_count} tokens)")
+if __name__ == "__main__":  # pragma: no cover - human-readable report
+    corpus = load_corpus()
+    print(f"Corpus: {len(corpus)} chunks from data/sample_docs/\n")
+    relevant_total = 0
+    for entry in build_sample_eval_set():
+        ids = entry["relevant"]
+        relevant_total += len(ids)
+        kind = "NEGATIVE CONTROL" if not ids else f"{len(ids)} relevant chunk(s)"
+        print(f"* {entry['query']}")
+        print(f"    {kind}  |  {entry['evidence']}")
+        for chunk_id in ids:
+            print(f"    - {chunk_id}")
+    queries = len(QUESTIONS)
+    print(
+        f"\n{queries} questions ({queries - 1} relevant + 1 negative control), "
+        f"{relevant_total} ground-truth chunk ids resolved."
+    )
