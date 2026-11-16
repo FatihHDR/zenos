@@ -91,6 +91,10 @@
     .cover-art { position:absolute; right:3%; top:13%; width:min(46vw,535px); height:auto; opacity:.82; }
     .cover-foot { display:flex; gap:30px; margin-top:58px; color:#8c8e94; font-size:10px; letter-spacing:.13em; text-transform:uppercase; }
     .cover-foot b { color:#d5d6d8; font-weight:500; display:block; font-size:15px; letter-spacing:0; margin-top:7px; text-transform:none; }
+    .team-list { display:flex; flex-wrap:wrap; align-items:center; gap:10px 24px; margin-top:18px; padding-top:12px; border-top:1px solid var(--line); max-width:760px; }
+    .team-member { display:flex; flex-direction:column; gap:3px; }
+    .team-member b { font-size:11px; font-weight:500; color:#e4e5e7; }
+    .team-member .mono { color:#92949a; font-size:9px; }
     .cube { transform-origin:center; animation:float 7s ease-in-out infinite; }
     .cube-lines { animation:glow 3.8s ease-in-out infinite alternate; }
     @keyframes float { 0%,100% { transform:translateY(0) rotate(-2deg); } 50% { transform:translateY(-14px) rotate(2deg); } }
@@ -194,6 +198,22 @@
     .source-chip { display:inline-block; padding:6px 9px; border:1px solid var(--line); border-radius:999px; color:#c7c8cb; font-size:9px; text-decoration:none; }
     .source-chip:hover { background:#303136; border-color:#777; }
     .bibliography-note { margin:9px 0 0; color:#777980; font-size:9px; }
+    .scenario-results { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .scenario-result { min-width:0; padding:15px; }
+    .scenario-result-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+    .scenario-result h3 { margin:5px 0 3px; font-size:20px; }
+    .scenario-result-head p { margin:0; color:#989aa0; font-size:10px; }
+    .scenario-primary { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:13px 0 10px; }
+    .scenario-primary > div { background:#292a2e; border-radius:8px; padding:8px 10px; }
+    .scenario-primary b { display:block; font-size:22px; font-weight:500; letter-spacing:-.04em; }
+    .scenario-primary span { color:#9fa1a7; font-size:9px; text-transform:uppercase; letter-spacing:.08em; }
+    .result-rows { display:grid; gap:0; }
+    .result-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:7px 0; border-top:1px solid var(--line); }
+    .result-item { display:flex; justify-content:space-between; gap:6px; align-items:baseline; }
+    .result-item span { color:#a5a7ad; font-size:9px; line-height:1.35; }
+    .result-item b { font-size:10px; font-weight:500; color:#e0e1e3; text-align:right; }
+    .scenario-result-foot { margin:8px 0 0; padding-top:8px; border-top:1px solid var(--line); color:#a2a4aa; font-size:9px; }
+    .scenario-takeaway { margin-top:11px; padding:12px 15px; font-size:10px; line-height:1.5; color:#c5c6ca; }
     .footer {
       position:fixed; z-index:20; inset:auto 0 0; height:64px; display:grid;
       grid-template-columns:1fr auto 1fr; align-items:center; padding:0 4.2vw;
@@ -226,6 +246,10 @@
       .cover h1 { font-size:clamp(46px,6.2vw,82px); margin:14px 0; }
       .cover-art { width:min(42vw,480px); }
       .cover-foot { margin-top:24px; }
+      .team-list { margin-top:12px; padding-top:9px; gap:8px 18px; }
+      .team-member b { font-size:10px; }
+      .finish .source-foot { margin-top:2px; }
+      .next-steps { margin-top:16px; }
       .stats { margin-top:8px; margin-bottom:9px; }
       .stat { padding:11px 15px; }
       .intro-bottom { min-height:130px; }
@@ -269,6 +293,9 @@
       .deck { padding:76px 18px 78px; }
       .cover { justify-content:flex-start; padding-top:12vh; }
       .cover-foot { margin-top:35px; gap:18px; }
+      .team-list { align-items:flex-start; gap:10px 16px; }
+      .team-list > .label { flex-basis:100%; }
+      .team-member { flex:1 1 130px; }
       .cover-art { top:38%; right:0; width:70vw; opacity:.3; }
       h1 { font-size:52px; }
       h2 { font-size:41px; }
@@ -302,6 +329,9 @@
       .scenario-insight { display:block; }
       .caveat { display:block; margin-top:11px; white-space:normal; }
       .coming-grid { grid-template-columns:1fr; }
+      .scenario-results { grid-template-columns:1fr; }
+      .scenario-result { padding:16px; }
+      .scenario-takeaway { margin-bottom:16px; }
       .coming-card { min-height:190px; padding:19px; }
       .next-steps { grid-template-columns:1fr; }
       .footer { height:58px; padding:0 17px; grid-template-columns:1fr auto 1fr; }
@@ -339,6 +369,11 @@
           <div class="cover-foot">
             <div>Korpus<b>223 potongan</b></div><div>Pencarian<b>Dense + Sparse + RRF</b></div><div>Layanan<b>FastAPI · OpenAPI 3.1</b></div>
           </div>
+          <div class="team-list" aria-label="Anggota kelompok">
+            <span class="label">ANGGOTA KELOMPOK</span>
+            <div class="team-member"><span class="mono">202310370311132</span><b>Fatahillah Al-Fatih</b></div>
+            <div class="team-member"><span class="mono">202310370311009</span><b>Muhammad Zam Zam Baihaqi</b></div>
+          </div>
         </div>
         <svg class="cover-art" viewBox="0 0 500 500" aria-label="Ilustrasi kubus wireframe empat dimensi">
           <defs><radialGradient id="halo"><stop stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
@@ -369,7 +404,7 @@
             <article class="source-mini glass"><div class="label">SUMBER 02 · API</div><strong>OpenAPI 3.1</strong><p class="small muted">Enam endpoint, skema request/response, sitasi, dan streaming SSE.</p><a class="ref-link" href="../reference/openapi.yaml" target="_blank" rel="noreferrer"><span class="mono">reference/openapi.yaml</span><span>↗</span></a></article>
             <article class="source-mini glass"><div class="label">SUMBER 03 · SKENARIO</div><strong>Evaluasi Skenario 1–2</strong><p class="small muted">Metrik agregat dan per pertanyaan dari delapan pertanyaan relevan.</p><a class="ref-link" href="../results/scenarios-1-2.md" target="_blank" rel="noreferrer"><span class="mono">results/scenarios-1-2.md</span><span>↗</span></a></article>
             <article class="source-mini glass"><div class="label">SUMBER 04 · BASELINE</div><strong>Retrieval tanpa reranker</strong><p class="small muted">Recall@5 untuk mode dense, sparse, dan hybrid.</p><a class="ref-link" href="../results/phase2-recall.md" target="_blank" rel="noreferrer"><span class="mono">results/phase2-recall.md</span><span>↗</span></a></article>
-            <article class="source-mini glass"><div class="label">CATATAN PENGUKURAN</div><strong>Latensi belum representatif</strong><p class="small muted">Pengukuran lokal terdampak tekanan memori dan tidak digunakan sebagai benchmark final.</p><span class="small muted">Data evaluasi: 15 Nov 2026 · UTC</span></article>
+            <article class="source-mini glass"><div class="label">SUMBER 05 · SKENARIO</div><strong>Evaluasi Skenario 3–4</strong><p class="small muted">Retrieval, generasi, sitasi, refusal, dan TTFT pada konfigurasi hybrid.</p><a class="ref-link" href="../results/scenarios-3-4.md" target="_blank" rel="noreferrer"><span class="mono">results/scenarios-3-4.md</span><span>↗</span></a></article>
           </div>
         </div>
       </section>
@@ -457,32 +492,51 @@
         </div>
       </section>
 
-      <section class="slide" data-title="Skenario lanjutan" data-notes="Skenario 3 menguji hybrid retrieval dengan reranker, sedangkan Skenario 4 menguji hybrid tanpa reranker. Keduanya belum dijalankan dalam hasil yang tersedia. Recall@25 bernilai 1,000 pada semua konfigurasi yang sudah diukur, sehingga Recall@5 dan MRR lebih informatif untuk perbandingan. Groundedness, citation precision, refusal accuracy, dan TTFT juga belum memiliki hasil evaluasi kuantitatif.">
-        <div class="section-head"><div><div class="eyebrow">07 / EVALUASI LANJUTAN</div><h2>Skenario 3–4.</h2></div><p class="lead">Kedua skenario belum dijalankan. Rancangannya membandingkan kontribusi RRF dan reranker pada jalur hybrid.</p></div>
-        <div class="coming-grid">
-          <article class="coming-card glass"><div><div class="status">BELUM DIJALANKAN · 03</div><h3>Hybrid dengan reranker</h3><p>RRF menggabungkan hasil dense dan sparse. Cross-encoder kemudian mengurutkan 25 kandidat untuk memilih lima chunk konteks.</p></div><div><span class="pill">KONTRIBUSI RRF</span><span class="pill">RECALL@5 · MRR</span></div></article>
-          <article class="coming-card glass"><div><div class="status">BELUM DIJALANKAN · 04</div><h3>Hybrid tanpa reranker</h3><p>Ablasi membandingkan hybrid retrieval tanpa cross-encoder dengan konfigurasi hybrid yang menggunakan reranker pada korpus dan set evaluasi yang sama.</p></div><div><span class="pill">ABLATION BASELINE</span><span class="pill">KORPUS YANG SAMA</span></div></article>
+      <section class="slide" data-title="Hasil Skenario 3–4" data-notes="Skenario 3 menjalankan hybrid RRF dengan reranker; Skenario 4 adalah ablasi tanpa reranker. Dibandingkan dengan S4, S3 menaikkan Recall@5 dari 0,6875 menjadi 0,8125 dan MRR@5 dari 0,5938 menjadi 0,6813, dengan tambahan reranking sekitar 39,7 detik. MRR@25 S3 sebesar 0,6233 lebih tinggi dari S1/S2, tetapi Recall@5 sama. Citation precision 1,000 hanya berarti semua tag yang dikeluarkan cocok dengan konteks. Groundedness mengukur cakupan sitasi per klaim, bukan kebenaran faktual. S4 menjawab satu-satunya negative control, sehingga refusal accuracy 0/1; jumlah kontrol terlalu kecil untuk generalisasi. TTFT kedua skenario melampaui target dan angka latensi terdampak kondisi host.">
+        <div class="section-head"><div><div class="eyebrow">07 / EVALUASI RETRIEVAL + GENERASI</div><h2>Hybrid: kualitas<br>dan latensi.</h2></div><p class="lead">Skenario 3 menambah reranking pada hybrid RRF; Skenario 4 menjadi baseline ablasi. Hasil mencakup retrieval dan generasi.</p></div>
+        <div class="scenario-results">
+          <article class="scenario-result glass">
+            <div class="scenario-result-head"><div><div class="label">SKENARIO 03 · HYBRID + RERANKER</div><h3>Recall@5 tertinggi bersama S1–S2</h3><p>Dense + sparse · RRF k=60 · cross-encoder · n=8</p></div><span class="pill">MODEL UTAMA</span></div>
+            <div class="scenario-primary">
+              <div><b>81.25%</b><span>Recall@5 · target &gt;90%</span></div>
+              <div><b>0.681</b><span>MRR@5</span></div>
+            </div>
+            <div class="result-rows">
+              <div class="result-row"><div class="result-item"><span>Recall@25 / MRR@25</span><b>1.000 / 0.623</b></div><div class="result-item"><span>Groundedness</span><b>65.3% · 32/49 klaim</b></div></div>
+              <div class="result-row"><div class="result-item"><span>Presisi sitasi</span><b>100% · 33/33 tag</b></div><div class="result-item"><span>Akurasi penolakan</span><b>100% · 1/1 kontrol</b></div></div>
+              <div class="result-row"><div class="result-item"><span>TTFT mean / p95</span><b>67.3 / 99.5 detik</b></div><div class="result-item"><span>Target TTFT</span><b>&lt; 2,5 detik</b></div></div>
+            </div>
+            <p class="scenario-result-foot">Retrieval mean 1,78 detik · reranking mean 39,67 detik</p>
+          </article>
+          <article class="scenario-result glass">
+            <div class="scenario-result-head"><div><div class="label">SKENARIO 04 · HYBRID TANPA RERANKER</div><h3>Baseline ablasi</h3><p>Dense + sparse · RRF k=60 · tanpa cross-encoder · n=8</p></div><span class="pill">ABLATION</span></div>
+            <div class="scenario-primary">
+              <div><b>68.75%</b><span>Recall@5 · target &gt;90%</span></div>
+              <div><b>0.594</b><span>MRR@5</span></div>
+            </div>
+            <div class="result-rows">
+              <div class="result-row"><div class="result-item"><span>Recall@25 / MRR@25</span><b>1.000 / 0.623</b></div><div class="result-item"><span>Groundedness</span><b>72.7% · 32/44 klaim</b></div></div>
+              <div class="result-row"><div class="result-item"><span>Presisi sitasi</span><b>100% · 35/35 tag</b></div><div class="result-item"><span>Akurasi penolakan</span><b>0% · 0/1 kontrol</b></div></div>
+              <div class="result-row"><div class="result-item"><span>TTFT mean / p95</span><b>5,67 / 15,42 detik</b></div><div class="result-item"><span>Target TTFT</span><b>&lt; 2,5 detik</b></div></div>
+            </div>
+            <p class="scenario-result-foot">Retrieval mean 2,08 detik · reranking tidak digunakan</p>
+          </article>
         </div>
-        <div class="stats" style="margin-top:15px">
-          <div class="stat glass"><div class="label">RECALL@25</div><b>1.000</b><span>pada semua konfigurasi terukur</span></div>
-          <div class="stat glass"><div class="label">METRIK PEMBEDA</div><b>@5 + MRR</b><span>lebih informatif untuk perbandingan</span></div>
-          <div class="stat glass"><div class="label">TTFT</div><b>Belum diukur</b><span>target PRD &lt; 2,5 detik</span></div>
-          <div class="stat glass"><div class="label">GROUNDEDNESS</div><b>Belum diukur</b><span>target PRD &gt; 95%</span></div>
-        </div>
+        <div class="scenario-takeaway glass"><strong>Perbandingan:</strong> S3 menambah Recall@5 sebesar 0,125 dan MRR@5 sebesar 0,0875 dibanding S4, tetapi mean TTFT bertambah sekitar 61,6 detik. RRF memberi MRR@25 tertinggi (0,623), sementara Recall@5 setelah reranking setara dengan S1–S2. Presisi sitasi 100% hanya menunjukkan tag sesuai konteks; latensi adalah indikasi dari satu run dan terdampak beban host. S4 menjawab negative control (1 pertanyaan), sehingga akurasi penolakannya belum stabil.</div>
       </section>
 
-      <section class="slide" data-title="Kesimpulan" data-notes="Implementasi saat ini mencakup ingestion, hybrid retrieval, reranking, generasi, validasi sitasi, dan API. Reranker meningkatkan Recall@5 dari 0,625 menjadi 0,8125, tetapi belum memenuhi target PRD lebih dari 0,90. Waktu reranking lokal pada CPU jauh di atas target dan pengukurannya terdampak tekanan memori. Skenario 3–4 serta metrik generasi dan TTFT belum tersedia. Validator sitasi telah diimplementasikan, tetapi akurasinya belum diukur.">
+      <section class="slide" data-title="Kesimpulan" data-notes="Skenario 3 dan 4 menunjukkan reranker meningkatkan Recall@5 hybrid dari 0,6875 menjadi 0,8125, namun belum mencapai target 0,90. Citation precision 1,000 menandakan seluruh tag cocok dengan konteks, sedangkan groundedness berada di 0,653–0,727 karena sejumlah klaim tidak diberi sitasi. Skenario 4 gagal menolak satu negative control. TTFT kedua konfigurasi melampaui target 2,5 detik. Angka latensi terdampak beban host dan harus diukur ulang pada kondisi stabil.">
         <div class="eyebrow">08 / KESIMPULAN</div>
         <div class="finish">
           <div>
-            <h2>Implementasi dan<br><span class="muted">status evaluasi.</span></h2>
-            <p class="lead">Zenos memiliki alur retrieval bertahap, metadata konteks yang terlacak, validasi sitasi, dan API. Hasil awal menunjukkan peningkatan Recall@5, sementara target dan metrik generasi belum terverifikasi.</p>
+            <h2>Temuan utama<br><span class="muted">dan batas evaluasi.</span></h2>
+            <p class="lead">Hybrid retrieval dengan reranker memperbaiki Recall@5, tetapi belum memenuhi target kualitas maupun latensi. Sitasi terhubung ke konteks, namun cakupan klaim dan penolakan jawaban masih perlu ditingkatkan.</p>
             <div class="next-steps">
-              <div class="next-step glass"><b>01 · Evaluasi retrieval</b><span>Skenario 3–4 belum dijalankan; Recall@5 dan MRR menjadi metrik pembanding.</span></div>
-              <div class="next-step glass"><b>02 · Evaluasi generasi</b><span>Groundedness, presisi sitasi, dan akurasi penolakan belum terukur.</span></div>
-              <div class="next-step glass"><b>03 · Evaluasi latensi</b><span>TTFT belum divalidasi; pengukuran reranker CPU terdampak tekanan memori.</span></div>
+              <div class="next-step glass"><b>01 · Retrieval</b><span>Recall@5 S3 81,25%; S4 68,75%. Keduanya di bawah target &gt;90%.</span></div>
+              <div class="next-step glass"><b>02 · Generasi</b><span>Groundedness 65–73%; S4 menjawab negative control. n kontrol hanya satu.</span></div>
+              <div class="next-step glass"><b>03 · Latensi</b><span>TTFT S3 67,3 s; S4 5,67 s. Keduanya di atas target 2,5 s.</span></div>
             </div>
-            <div class="source-foot">Recall@5: 0,625 → 0,8125 setelah reranking · target PRD: &gt; 0,90 · sampel: 8 pertanyaan</div>
+            <div class="source-foot">Presisi sitasi 100% menunjukkan kecocokan tag–konteks, bukan jaminan kebenaran faktual. Angka latensi dipengaruhi kondisi host.</div>
           </div>
           <div class="finish-visual" aria-hidden="true"><div class="orbit"></div><div class="orbit two"></div><div class="finish-core"><span>ZENOS<br>BERBASIS<br>BUKTI</span></div></div>
         </div>
@@ -530,10 +584,11 @@
           <a class="source-chip" href="../README.md" target="_blank" rel="noreferrer">README Zenos</a>
           <a class="source-chip" href="../reference/openapi.yaml" target="_blank" rel="noreferrer">OpenAPI 3.1</a>
           <a class="source-chip" href="../results/scenarios-1-2.md" target="_blank" rel="noreferrer">Hasil Skenario 1–2</a>
+          <a class="source-chip" href="../results/scenarios-3-4.md" target="_blank" rel="noreferrer">Hasil Skenario 3–4</a>
           <a class="source-chip" href="../results/phase2-recall.md" target="_blank" rel="noreferrer">Baseline retrieval</a>
           <a class="source-chip" href="https://qdrant.tech/documentation/search/hybrid-queries/" target="_blank" rel="noreferrer">Dokumentasi Qdrant</a>
         </div>
-        <p class="bibliography-note">Uraian metodologis pada slide merupakan parafrasa. Angka evaluasi dan keputusan implementasi merujuk pada artefak proyek; hasil Ragas dan Skenario 3–4 belum tersedia.</p>
+        <p class="bibliography-note">Uraian metodologis pada slide merupakan parafrasa. Angka dan keputusan implementasi merujuk pada artefak proyek; evaluasi Ragas belum dijalankan.</p>
       </section>
     </div>
   </main>
