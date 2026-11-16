@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111214">
+  <title>Zenos — Sistem RAG Hybrid dengan Sitasi Terverifikasi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111214;
+      --surface: #202124;
+      --surface-strong: #202124;
+      --line: #3a3b3f;
+      --muted: #9b9da3;
+      --soft: #d3d4d7;
+      --white: #f5f5f6;
+      --accent: #c7c9cd;
+      --green: #c6d7ce;
+      --amber: #d6cbb6;
+      --font-body: "Montserrat", "Segoe UI", sans-serif;
+      --font-display: "Poppins", "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      overflow: hidden;
+      background:var(--bg);
+      color: var(--white);
+      font-family: var(--font-body);
+      letter-spacing: -.015em;
+    }
+    h1,h2,h3,.brand { font-family:var(--font-display); }
+    button { font: inherit; color: inherit; }
+    .topbar {
+      position: fixed; z-index: 20; inset: 0 0 auto; height: 68px; padding: 0 4.2vw;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      background:var(--bg);
+    }
+    .brand { display:flex; align-items:center; gap:12px; font-size:12px; font-weight:700; letter-spacing:.14em; }
+    .brand-mark { width:27px; height:27px; position:relative; transform:rotate(45deg); }
+    .brand-mark:before,.brand-mark:after { content:""; position:absolute; inset:2px; border:1px solid #eee; }
+    .brand-mark:after { inset:7px -3px -3px 7px; border-color:#777; }
+    .brand span:last-child { color:#9c9da1; font-weight:500; }
+    .top-meta { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:11px; letter-spacing:.12em; text-transform:uppercase; }
+    .live-dot { width:6px; height:6px; border-radius:50%; background:#d9dadc; }
+    .top-actions { display:flex; align-items:center; gap:8px; }
+    .icon-button {
+      width:36px; height:36px; display:grid; place-items:center; border-radius:50%;
+      border:1px solid var(--line); background:#202124; cursor:pointer;
+      transition:background .2s, transform .2s, border-color .2s;
+    }
+    .icon-button:hover { background:#303136; border-color:#777; transform:translateY(-1px); }
+    .icon-button svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.6; }
+    main { height:100%; }
+    .deck {
+      width:min(1320px, 100%); height:100%; margin:auto; padding:94px 5.2vw 84px;
+      position:relative;
+    }
+    .slide {
+      display:none; height:100%; width:100%; overflow:auto; scrollbar-width:thin;
+      scrollbar-color:#555 transparent; animation:slide-in .55s cubic-bezier(.2,.8,.2,1) both;
+    }
+    .slide.active { display:flex; flex-direction:column; }
+    @keyframes slide-in { from { opacity:0; transform:translateY(12px) scale(.992); } to {opacity:1;transform:none;} }
+    .eyebrow { color:#aeb0b5; font-size:11px; text-transform:uppercase; letter-spacing:.2em; display:flex; gap:10px; align-items:center; }
+    .eyebrow:before { content:""; width:25px; height:1px; background:#aaa; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { font-size:clamp(46px,7vw,94px); line-height:.97; letter-spacing:-.065em; font-weight:500; margin:24px 0 22px; max-width:860px; }
+    h2 { font-size:clamp(36px,5.2vw,66px); line-height:1; letter-spacing:-.055em; font-weight:500; margin:18px 0 18px; }
+    h3 { font-weight:500; letter-spacing:-.025em; }
+    .lead { max-width:660px; color:#b6b7bc; font-size:clamp(16px,1.8vw,21px); line-height:1.62; }
+    .muted { color:var(--muted); }
+    .small { font-size:12px; line-height:1.55; }
+    .label { font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+    .mono { font-family:ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .glass {
+      border:1px solid var(--line); background:var(--surface);
+      border-radius:14px;
+    }
+    .pill { border:1px solid var(--line); border-radius:999px; padding:8px 12px; color:#c6c7cb; font-size:11px; letter-spacing:.05em; }
+    .cover { justify-content:center; position:relative; overflow:hidden; }
+    .cover-copy { position:relative; z-index:2; max-width:760px; }
+    .cover h1 em { font-style:normal; color:#85878c; }
+    .cover .lead { max-width:560px; }
+    .cover-tags { display:flex; flex-wrap:wrap; gap:9px; margin-top:27px; }
+    .cover-art { position:absolute; right:3%; top:13%; width:min(46vw,535px); height:auto; opacity:.82; }
+    .cover-foot { display:flex; gap:30px; margin-top:58px; color:#8c8e94; font-size:10px; letter-spacing:.13em; text-transform:uppercase; }
+    .cover-foot b { color:#d5d6d8; font-weight:500; display:block; font-size:15px; letter-spacing:0; margin-top:7px; text-transform:none; }
+    .cube { transform-origin:center; animation:float 7s ease-in-out infinite; }
+    .cube-lines { animation:glow 3.8s ease-in-out infinite alternate; }
+    @keyframes float { 0%,100% { transform:translateY(0) rotate(-2deg); } 50% { transform:translateY(-14px) rotate(2deg); } }
+    @keyframes glow { from { opacity:.45; filter:drop-shadow(0 0 2px #fff); } to { opacity:1; filter:drop-shadow(0 0 8px #fff); } }
+    .section-head { display:flex; justify-content:space-between; align-items:flex-end; gap:24px; margin-bottom:22px; }
+    .section-head .lead { margin:0; max-width:450px; font-size:15px; }
+    .reference-grid { display:grid; grid-template-columns:1.1fr .9fr; gap:18px; flex:1; min-height:0; }
+    .reference-card { padding:25px; display:flex; flex-direction:column; justify-content:space-between; min-height:230px; }
+    .reference-card .index { font-size:10px; color:#85878c; letter-spacing:.18em; }
+    .reference-card h3 { font-size:26px; margin:18px 0 10px; }
+    .ref-link { display:flex; justify-content:space-between; align-items:center; text-decoration:none; color:inherit; border-top:1px solid var(--line); padding-top:14px; font-size:12px; }
+    .ref-link span:last-child { font-size:18px; color:#aaa; transition:transform .2s; }
+    .ref-link:hover span:last-child { transform:translate(3px,-3px); }
+    .source-stack { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .source-mini { padding:18px; }
+    .source-mini strong { display:block; margin:10px 0 6px; font-size:14px; font-weight:550; }
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:18px 0 22px; }
+    .stat { padding:18px 20px; }
+    .stat b { display:block; font-size:clamp(24px,3vw,39px); font-weight:500; letter-spacing:-.06em; margin:7px 0 3px; }
+    .stat span { color:var(--muted); font-size:11px; }
+    .intro-bottom { display:grid; grid-template-columns:1.15fr .85fr; gap:16px; flex:1; min-height:160px; }
+    .quote-card { padding:22px 24px; display:flex; flex-direction:column; justify-content:center; }
+    .quote-card blockquote { margin:12px 0 0; font-size:clamp(18px,2.4vw,27px); line-height:1.35; letter-spacing:-.04em; max-width:680px; }
+    .quote-card blockquote strong { color:#fff; font-weight:550; }
+    .promise-card { padding:22px; display:flex; flex-direction:column; justify-content:space-between; }
+    .promise-card .rule { font-size:20px; line-height:1.4; max-width:320px; }
+    .flow { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; align-items:stretch; margin:10px 0 18px; }
+    .flow-node { text-align:left; padding:17px 16px; position:relative; min-height:135px; cursor:pointer; transition:.2s; }
+    .flow-node:hover,.flow-node.selected { background:#2b2c30; border-color:#a6a8ad; transform:translateY(-3px); }
+    .flow-node:not(:last-child):after { content:""; position:absolute; top:50%; right:-11px; width:12px; height:1px; background:#8a8b8f; z-index:1; }
+    .flow-node b { display:block; font-size:15px; margin:16px 0 6px; font-weight:550; }
+    .node-num { font-size:10px; color:#9b9da3; letter-spacing:.15em; }
+    .node-icon { width:24px; height:24px; border:1px solid #b7b9bd; transform:rotate(45deg); display:block; position:relative; }
+    .node-icon:after { content:""; position:absolute; inset:4px; border:1px solid #777; }
+    .flow-detail { padding:14px 18px; display:flex; align-items:center; gap:20px; min-height:66px; }
+    .flow-detail b { min-width:128px; font-size:13px; font-weight:550; }
+    .flow-detail p { margin:0; color:#aeb0b5; font-size:12px; line-height:1.5; }
+    .repo-structure { display:grid; grid-template-columns:.84fr 1.16fr; gap:16px; flex:1; min-height:0; }
+    .tree { padding:22px 24px; overflow:auto; }
+    .tree pre { margin:0; white-space:pre; color:#c3c4c8; font:12px/1.76 ui-monospace,Consolas,monospace; }
+    .tree .dim { color:#777980; }
+    .module-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .module { padding:16px; min-height:105px; }
+    .module b { display:block; font-size:13px; font-weight:550; margin:10px 0 5px; }
+    .module p { margin:0; color:#a3a5ab; font-size:11px; line-height:1.5; }
+    .choice-table { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .choice { padding:19px 21px; }
+    .choice-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+    .choice h3 { margin:0; font-size:19px; }
+    .choice .versus { color:#81838a; font-size:10px; letter-spacing:.14em; }
+    .choice p { color:#afb1b6; font-size:12px; line-height:1.55; margin:9px 0 0; }
+    .choice .selected-value { color:#f1f1f2; font-size:11px; }
+    .decision-note { margin-top:12px; padding:13px 17px; color:#c5c6ca; font-size:12px; line-height:1.5; }
+    .scenario-wrap { display:grid; grid-template-columns:.78fr 1.22fr; gap:15px; flex:1; min-height:0; }
+    .scenario-list { display:flex; flex-direction:column; gap:10px; }
+    .scenario-tab { text-align:left; padding:18px; cursor:pointer; transition:.2s; }
+    .scenario-tab:hover,.scenario-tab.active { border-color:#aaa; background:#2b2c30; }
+    .scenario-tab .tab-top { display:flex; justify-content:space-between; align-items:center; }
+    .scenario-tab b { font-size:15px; font-weight:550; }
+    .scenario-tab p { margin:8px 0 0; color:#999ba1; font-size:11px; }
+    .scenario-detail { padding:24px; display:flex; flex-direction:column; justify-content:space-between; }
+    .scenario-title { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; }
+    .scenario-title h3 { margin:5px 0 8px; font-size:25px; }
+    .metric-bars { margin:22px 0 12px; }
+    .bar-row { display:grid; grid-template-columns:105px 1fr 46px; gap:12px; align-items:center; margin:15px 0; color:#aeb0b5; font-size:11px; }
+    .bar { height:6px; background:#34363a; border-radius:9px; overflow:hidden; }
+    .bar i { display:block; height:100%; width:var(--value); background:#d5d6d9; border-radius:9px; animation:bar-in 1.1s cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes bar-in { from { width:0; } }
+    .scenario-insight { border-top:1px solid var(--line); padding-top:15px; display:flex; justify-content:space-between; gap:20px; }
+    .scenario-insight p { max-width:520px; color:#aaacb1; font-size:11px; line-height:1.6; margin:0; }
+    .caveat { color:var(--amber); font-size:10px; letter-spacing:.07em; text-transform:uppercase; white-space:nowrap; }
+    .coming-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; flex:1; }
+    .coming-card { padding:24px; display:flex; flex-direction:column; justify-content:space-between; min-height:210px; overflow:hidden; position:relative; }
+    .coming-card:after { content:""; position:absolute; width:150px; height:150px; right:-42px; bottom:-62px; border:1px solid rgba(255,255,255,.13); transform:rotate(45deg); box-shadow:0 0 0 12px rgba(255,255,255,.025),0 0 0 26px rgba(255,255,255,.02); }
+    .coming-card h3 { font-size:28px; margin:12px 0 8px; }
+    .coming-card p { color:#aeb0b5; font-size:12px; line-height:1.6; max-width:420px; }
+    .status { display:inline-flex; gap:8px; align-items:center; color:#d0d1d4; font-size:10px; letter-spacing:.13em; text-transform:uppercase; }
+    .status:before { content:""; width:6px; height:6px; border:1px solid #aaa; border-radius:50%; }
+    .finish { display:grid; grid-template-columns:1.1fr .9fr; gap:20px; flex:1; align-items:center; }
+    .finish h2 { font-size:clamp(42px,6.1vw,76px); }
+    .finish-visual { position:relative; height:100%; min-height:330px; display:grid; place-items:center; }
+    .orbit { position:absolute; width:min(34vw,390px); aspect-ratio:1; border:1px solid rgba(255,255,255,.16); border-radius:50%; transform:rotateX(68deg) rotateZ(-20deg); animation:orbit 14s linear infinite; }
+    .orbit.two { width:min(27vw,310px); transform:rotateX(68deg) rotateZ(50deg); animation-direction:reverse; border-style:dashed; }
+    @keyframes orbit { to { rotate:0 0 1 360deg; } }
+    .finish-core { width:150px; height:150px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.7); transform:rotate(45deg); box-shadow:0 0 45px rgba(255,255,255,.08),inset 0 0 28px rgba(255,255,255,.06); }
+    .finish-core span { transform:rotate(-45deg); text-align:center; font-size:10px; letter-spacing:.18em; line-height:1.6; }
+    .next-steps { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-top:21px; }
+    .next-step { padding:14px; }
+    .next-step b { display:block; font-size:12px; margin-bottom:7px; }
+    .next-step span { color:#9fa1a7; font-size:10px; line-height:1.5; }
+    .source-foot { margin-top:15px; color:#777980; font-size:10px; }
+    .bibliography-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .bibliography-card { padding:12px 14px; min-width:0; }
+    .bibliography-card h3 { font-size:13px; line-height:1.35; margin:7px 0 5px; }
+    .bibliography-card h3 a { color:#f0f0f1; text-decoration:none; }
+    .bibliography-card h3 a:hover { text-decoration:underline; text-underline-offset:3px; }
+    .bibliography-card p { color:#aeb0b5; font-size:10px; line-height:1.45; margin:0; }
+    .bibliography-card .label { font-size:9px; }
+    .project-sources { display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin-top:12px; }
+    .project-sources .label { margin-right:4px; }
+    .source-chip { display:inline-block; padding:6px 9px; border:1px solid var(--line); border-radius:999px; color:#c7c8cb; font-size:9px; text-decoration:none; }
+    .source-chip:hover { background:#303136; border-color:#777; }
+    .bibliography-note { margin:9px 0 0; color:#777980; font-size:9px; }
+    .footer {
+      position:fixed; z-index:20; inset:auto 0 0; height:64px; display:grid;
+      grid-template-columns:1fr auto 1fr; align-items:center; padding:0 4.2vw;
+      background:var(--bg);
+    }
+    .slide-count { color:#999ba0; font:11px ui-monospace,Consolas,monospace; }
+    .slide-count strong { color:#eee; font-weight:500; }
+    .dots { display:flex; gap:7px; }
+    .dot { width:18px; height:3px; padding:0; border:0; border-radius:6px; background:#484a4f; cursor:pointer; transition:width .25s,background .25s; }
+    .dot.active { width:36px; background:#e2e3e5; }
+    .controls { display:flex; justify-content:flex-end; gap:8px; align-items:center; }
+    .nav-btn { height:34px; min-width:38px; border:1px solid var(--line); border-radius:999px; background:transparent; cursor:pointer; color:#d5d6d8; transition:.2s; }
+    .nav-btn:hover:not(:disabled) { background:#eee; color:#111; }
+    .nav-btn:disabled { opacity:.3; cursor:default; }
+    .key-hint { color:#73757b; font-size:10px; margin-right:9px; }
+    .notes-panel {
+      display:none; position:fixed; z-index:30; right:22px; bottom:78px; width:min(390px,calc(100vw - 32px));
+      padding:20px; border:1px solid var(--line); border-radius:15px; background:#202124;
+    }
+    .notes-panel.open { display:block; animation:slide-in .2s ease-out; }
+    .notes-panel h3 { margin:8px 0 10px; font-size:16px; }
+    .notes-panel p { color:#c0c1c5; font-size:12px; line-height:1.65; margin:0; }
+    .progress { position:fixed; z-index:21; top:67px; left:0; height:1px; background:#e2e3e5; transition:width .4s; }
+    .toast { position:fixed; z-index:50; top:82px; left:50%; transform:translate(-50%,-10px); opacity:0; pointer-events:none; padding:9px 14px; border:1px solid var(--line); border-radius:99px; background:#242529; color:#d6d7da; font-size:11px; transition:.25s; }
+    .toast.show { opacity:1; transform:translate(-50%,0); }
+    @media (min-width:851px) and (max-height:800px) {
+      .deck { padding-top:76px; padding-bottom:70px; }
+      .section-head { margin-bottom:14px; }
+      .section-head h2 { margin:12px 0; }
+      .cover h1 { font-size:clamp(46px,6.2vw,82px); margin:14px 0; }
+      .cover-art { width:min(42vw,480px); }
+      .cover-foot { margin-top:24px; }
+      .stats { margin-top:8px; margin-bottom:9px; }
+      .stat { padding:11px 15px; }
+      .intro-bottom { min-height:130px; }
+      .quote-card,.promise-card { padding:17px 19px; }
+      .reference-grid { gap:12px; }
+      .reference-card { padding:18px; min-height:205px; }
+      .source-mini { padding:13px; }
+      .repo-structure { gap:12px; }
+      .tree { padding:16px 19px; }
+      .tree pre { line-height:1.55; }
+      .module-grid { gap:7px; }
+      .module { padding:12px; min-height:90px; }
+      .repo-structure[style] { margin-top:10px !important; }
+      .choice-table { grid-template-columns:repeat(3,1fr); gap:8px; }
+      .choice { padding:13px 15px; }
+      .choice h3 { font-size:17px; }
+      .choice p { font-size:11px; line-height:1.45; }
+      .decision-note { margin-top:9px; padding:10px 14px; font-size:11px; }
+    }
+    @media (max-width:850px) {
+      .deck { padding:88px 5vw 78px; }
+      .cover-art { opacity:.33; right:0; width:min(64vw,480px); }
+      .reference-grid,.repo-structure,.scenario-wrap,.finish { grid-template-columns:1fr; }
+      .source-stack { grid-template-columns:1fr 1fr; }
+      .source-stack,.source-mini,.source-mini .ref-link { min-width:0; }
+      .source-mini .ref-link .mono { overflow-wrap:anywhere; }
+      .reference-card { min-height:190px; }
+      .flow { grid-template-columns:repeat(5,minmax(105px,1fr)); overflow:auto; padding-bottom:6px; }
+      .flow-node { min-height:120px; }
+      .repo-structure { flex:unset; }
+      .tree { max-height:220px; }
+      .module-grid { grid-template-columns:repeat(4,1fr); }
+      .scenario-wrap { flex:unset; }
+      .scenario-list { flex-direction:row; }
+      .scenario-tab { flex:1; }
+      .finish-visual { display:none; }
+    }
+    @media (max-width:600px) {
+      .topbar { height:58px; padding:0 17px; }
+      .top-meta { display:none; }
+      .deck { padding:76px 18px 78px; }
+      .cover { justify-content:flex-start; padding-top:12vh; }
+      .cover-foot { margin-top:35px; gap:18px; }
+      .cover-art { top:38%; right:0; width:70vw; opacity:.3; }
+      h1 { font-size:52px; }
+      h2 { font-size:41px; }
+      .section-head { display:block; }
+      .section-head .lead { margin-top:12px; }
+      .reference-grid,.repo-structure { display:block; }
+      .reference-grid > *, .repo-structure > * { margin-bottom:12px; }
+      .source-stack { grid-template-columns:1fr 1fr; }
+      .reference-card { min-height:168px; padding:18px; }
+      .reference-card h3 { font-size:21px; }
+      .stats { grid-template-columns:1fr 1fr; gap:8px; margin:8px 0 13px; }
+      .stat { padding:14px; }
+      .intro-bottom { grid-template-columns:1fr; }
+      .promise-card { min-height:130px; }
+      .flow { grid-template-columns:repeat(5,125px); }
+      .flow-detail { align-items:flex-start; gap:10px; }
+      .flow-detail b { min-width:90px; }
+      .module-grid { grid-template-columns:1fr 1fr; }
+      .choice-table { grid-template-columns:1fr; }
+      .choice { padding:14px 16px; }
+      .decision-note { margin-bottom:12px; }
+      .bibliography-grid { grid-template-columns:1fr; }
+      .bibliography-card { padding:14px; }
+      .project-sources { align-items:flex-start; }
+      .scenario-list { gap:6px; }
+      .scenario-tab { padding:12px 10px; }
+      .scenario-tab b { font-size:11px; }
+      .scenario-tab p { font-size:9px; }
+      .scenario-detail { padding:17px; min-height:400px; }
+      .bar-row { grid-template-columns:75px 1fr 38px; gap:8px; }
+      .scenario-insight { display:block; }
+      .caveat { display:block; margin-top:11px; white-space:normal; }
+      .coming-grid { grid-template-columns:1fr; }
+      .coming-card { min-height:190px; padding:19px; }
+      .next-steps { grid-template-columns:1fr; }
+      .footer { height:58px; padding:0 17px; grid-template-columns:1fr auto 1fr; }
+      .key-hint { display:none; }
+      .nav-btn { min-width:34px; height:32px; }
+      .progress { top:57px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>ZENOS</span><span>PRESENTASI SISTEM</span></div>
+    <div class="top-meta"><span class="live-dot"></span><span>RAG hybrid · sitasi terverifikasi</span></div>
+    <div class="top-actions">
+      <button class="icon-button" id="notesToggle" aria-label="Buka catatan presenter" title="Catatan presenter (N)">
+        <svg viewBox="0 0 24 24"><path d="M5 4.5h14v15H5zM8 8h8M8 12h8M8 16h5"/></svg>
+      </button>
+      <button class="icon-button" id="fullscreenToggle" aria-label="Mode layar penuh" title="Layar penuh (F)">
+        <svg viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4"/></svg>
+      </button>
+    </div>
+  </header>
+  <div class="progress" id="progress"></div>
+  <main>
+    <div class="deck">
+      <section class="slide cover active" data-title="Sistem Zenos" data-notes="Zenos menggabungkan pencarian semantik dan leksikal dengan generasi jawaban berbasis konteks. Sitasi yang dihasilkan diperiksa terhadap metadata chunk yang diberikan kepada model. Presentasi ini merangkum rancangan, implementasi, hasil evaluasi, dan batas pengukuran yang tersedia.">
+        <div class="cover-copy">
+          <div class="eyebrow">01 / RINGKASAN SISTEM</div>
+          <h1>Sistem tanya jawab<br><em>berbasis dokumen.</em></h1>
+          <p class="lead">Zenos menggabungkan pencarian semantik dan pencarian leksikal untuk menemukan konteks yang relevan. Jawaban disusun berdasarkan konteks terpilih, dengan sitasi yang diverifikasi terhadap metadata sumber.</p>
+          <div class="cover-tags"><span class="pill">HYBRID RAG</span><span class="pill">SITASI TERVERIFIKASI</span><span class="pill">PRESENTASI LOKAL</span></div>
+          <div class="cover-foot">
+            <div>Korpus<b>223 potongan</b></div><div>Pencarian<b>Dense + Sparse + RRF</b></div><div>Layanan<b>FastAPI · OpenAPI 3.1</b></div>
+          </div>
+        </div>
+        <svg class="cover-art" viewBox="0 0 500 500" aria-label="Ilustrasi kubus wireframe empat dimensi">
+          <defs><radialGradient id="halo"><stop stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
+          <circle cx="250" cy="250" r="220" fill="url(#halo)"/>
+          <g class="cube cube-lines" fill="none" stroke="#e9eaec" stroke-width="1.15">
+            <path d="M250 45 390 125 390 300 250 380 110 300 110 125Z"/>
+            <path d="m250 45 140 255M250 45 110 300M390 125 110 300M390 125 250 380M390 300 110 125M390 300 250 45M250 380 110 125"/>
+            <path d="M190 110 330 190 310 350 170 270Z" opacity=".66"/>
+            <path d="m190 110 120 240M330 190 170 270M250 45 250 380M110 125 390 300" opacity=".44"/>
+            <path d="m250 45 80 145-80 190-80-110Z" opacity=".56"/>
+          </g>
+          <g fill="#f3f3f4"><circle cx="250" cy="45" r="3"/><circle cx="390" cy="125" r="3"/><circle cx="390" cy="300" r="3"/><circle cx="250" cy="380" r="3"/><circle cx="110" cy="300" r="3"/><circle cx="110" cy="125" r="3"/></g>
+          <g stroke="#85878c" fill="none"><path d="M70 70h38M70 70v38M430 392h-38M430 392v-38"/><path d="M218 425h64" opacity=".65"/></g>
+        </svg>
+      </section>
+
+      <section class="slide" data-title="Dokumentasi dan sumber evaluasi" data-notes="README menjadi acuan arsitektur dan keputusan implementasi. OpenAPI menjelaskan kontrak layanan. Hasil evaluasi menyediakan angka untuk baseline retrieval dan Skenario 1–2. Skenario 1–2 tidak menjalankan generator sehingga tidak menjadi ukuran kualitas jawaban.">
+        <div class="section-head">
+          <div><div class="eyebrow">02 / SUMBER PROYEK</div><h2>Dokumentasi dan<br>hasil evaluasi.</h2></div>
+          <p class="lead">Ringkasan ini menggunakan README sebagai acuan desain, OpenAPI sebagai kontrak layanan, dan file hasil sebagai sumber metrik.</p>
+        </div>
+        <div class="reference-grid">
+          <article class="reference-card glass">
+            <div><div class="index">SUMBER 01 · KONTEKS PROYEK</div><h3>README dan struktur repo</h3><p class="small muted">Tujuan sistem, komponen, konfigurasi, deployment, batasan, dan target evaluasi.</p></div>
+            <a class="ref-link" href="../README.md" target="_blank" rel="noreferrer"><span><span class="mono">zenos/README.md</span><br><span class="muted">Arsitektur · keputusan · prosedur</span></span><span>↗</span></a>
+          </article>
+          <div class="source-stack">
+            <article class="source-mini glass"><div class="label">SUMBER 02 · API</div><strong>OpenAPI 3.1</strong><p class="small muted">Enam endpoint, skema request/response, sitasi, dan streaming SSE.</p><a class="ref-link" href="../reference/openapi.yaml" target="_blank" rel="noreferrer"><span class="mono">reference/openapi.yaml</span><span>↗</span></a></article>
+            <article class="source-mini glass"><div class="label">SUMBER 03 · SKENARIO</div><strong>Evaluasi Skenario 1–2</strong><p class="small muted">Metrik agregat dan per pertanyaan dari delapan pertanyaan relevan.</p><a class="ref-link" href="../results/scenarios-1-2.md" target="_blank" rel="noreferrer"><span class="mono">results/scenarios-1-2.md</span><span>↗</span></a></article>
+            <article class="source-mini glass"><div class="label">SUMBER 04 · BASELINE</div><strong>Retrieval tanpa reranker</strong><p class="small muted">Recall@5 untuk mode dense, sparse, dan hybrid.</p><a class="ref-link" href="../results/phase2-recall.md" target="_blank" rel="noreferrer"><span class="mono">results/phase2-recall.md</span><span>↗</span></a></article>
+            <article class="source-mini glass"><div class="label">CATATAN PENGUKURAN</div><strong>Latensi belum representatif</strong><p class="small muted">Pengukuran lokal terdampak tekanan memori dan tidak digunakan sebagai benchmark final.</p><span class="small muted">Data evaluasi: 15 Nov 2026 · UTC</span></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-title="Pengantar Zenos" data-notes="Sistem menjawab pertanyaan berdasarkan dokumen yang diindeks. Tantangan utama RAG adalah memastikan bahwa potongan yang digunakan relevan dan bahwa klaim jawaban merujuk ke sumber yang tersedia. Zenos menerapkan retrieval bertahap serta validasi sitasi terhadap metadata konteks. Evaluasi saat ini menggunakan tiga dokumen dan delapan pertanyaan relevan, sehingga hasilnya masih bersifat awal.">
+        <div class="eyebrow">03 / PENDEKATAN</div><h2>Dari dokumen<br>ke jawaban terlacak.</h2>
+        <p class="lead">Zenos mengambil konteks relevan dari korpus sebelum generasi dan memvalidasi sitasi terhadap metadata sumber.</p>
+        <div class="stats">
+          <div class="stat glass"><div class="label">KORPUS</div><b>3</b><span>dokumen · 58 halaman</span></div>
+          <div class="stat glass"><div class="label">POTONGAN TEKS</div><b>223</b><span>chunk · sekitar 101 ribu token</span></div>
+          <div class="stat glass"><div class="label">MODEL EMBEDDING</div><b>BGE-M3</b><span>dense 1024 dimensi + sparse</span></div>
+          <div class="stat glass"><div class="label">KONTEKS AKHIR</div><b>5 / 25</b><span>kandidat setelah reranking</span></div>
+        </div>
+        <div class="intro-bottom">
+          <article class="quote-card glass"><div class="label">PRINSIP DESAIN</div><blockquote>Jawaban merujuk pada <strong>bukti di konteks</strong> dan sumber yang terlacak.</blockquote></article>
+          <article class="promise-card glass"><div class="label">KONTEKS TIDAK MEMADAI</div><div class="rule">Model diarahkan untuk <strong>menolak menjawab</strong> tanpa bukti yang cukup.</div><div class="small muted">Sitasi dicocokkan dengan metadata; penolakan ditandai eksplisit.</div></article>
+        </div>
+      </section>
+
+      <section class="slide" data-title="Arsitektur dan struktur Zenos" data-notes="Ingestion dijalankan secara offline. Pada jalur tanya-jawab, pertanyaan diubah menjadi embedding, dicari di Qdrant, lalu kandidat diurutkan ulang sebelum digunakan oleh generator. Validator memeriksa sitasi terhadap metadata konteks. Implementasi berada di src/; API FastAPI menjadi antarmuka layanan. Setiap node pada diagram menampilkan ringkasan teknis tahap terkait.">
+        <div class="section-head">
+          <div><div class="eyebrow">04 / ARSITEKTUR</div><h2>Struktur Zenos.</h2></div>
+          <p class="lead">Ingestion mengubah dokumen menjadi indeks pencarian. Jalur pertanyaan menerapkan retrieval, reranking, generasi, dan verifikasi sitasi.</p>
+        </div>
+        <div class="flow" id="flow">
+          <button class="flow-node glass selected" data-name="Ingestion" data-detail="DocumentParser membaca PDF per halaman dan Markdown. TokenChunker membagi teks menjadi chunk 512 token dengan overlap 100 token; metadata halaman tetap melekat pada setiap chunk."><span class="node-num">01 / INGESTION</span><span class="node-icon"></span><b>Dokumen → chunk</b><span class="small muted">parser · 512 / 100</span></button>
+          <button class="flow-node glass" data-name="Embedding" data-detail="BAAI/bge-m3 menghasilkan dense vector 1024 dimensi dan sparse vector dalam satu model. Pendekatan ini digunakan untuk korpus multibahasa."><span class="node-num">02 / INDEKS</span><span class="node-icon"></span><b>Embedding ganda</b><span class="small muted">BGE-M3</span></button>
+          <button class="flow-node glass" data-name="Retrieval" data-detail="Qdrant menyimpan named vector dense dan sparse pada koleksi zenos_docs. Sistem mendukung pencarian dense, sparse, dan hybrid dengan Reciprocal Rank Fusion (RRF k=60)."><span class="node-num">03 / PENCARIAN</span><span class="node-icon"></span><b>Qdrant + RRF</b><span class="small muted">25 kandidat</span></button>
+          <button class="flow-node glass" data-name="Reranking & generasi" data-detail="Cross-encoder mengurutkan ulang 25 kandidat dan memilih 5 chunk. LLM menghasilkan jawaban dengan instruksi sitasi. Generator tidak dipanggil pada evaluasi retrieval Skenario 1–2."><span class="node-num">04 / GENERASI</span><span class="node-icon"></span><b>Reranking → LLM</b><span class="small muted">25 → 5 chunk</span></button>
+          <button class="flow-node glass" data-name="Verifikasi & API" data-detail="Validator mencocokkan tag [Source: ..., Pg ...] dengan metadata konteks. FastAPI menyediakan endpoint root, /health, /info, /search, /answer, dan /answer/stream."><span class="node-num">05 / VERIFIKASI</span><span class="node-icon"></span><b>Sitasi → API</b><span class="small muted">FastAPI · SSE</span></button>
+        </div>
+        <div class="flow-detail glass" aria-live="polite"><b id="flowName">Ingestion</b><p id="flowDescription">DocumentParser membaca PDF per halaman dan Markdown. TokenChunker membagi teks menjadi chunk 512 token dengan overlap 100 token; metadata halaman tetap melekat pada setiap chunk.</p></div>
+        <div class="repo-structure" style="margin-top:15px">
+          <div class="tree glass"><div class="label" style="margin-bottom:13px">PETA REPOSITORI</div><pre><span class="dim">zenos/</span>
+├─ src/ <span class="dim">pipeline inti + API</span>
+│  ├─ ingestion/ · embeddings/
+│  ├─ db/ · retrieval/ · reranking/
+│  ├─ generation/ · evaluation/ · api/
+├─ data/ <span class="dim">dokumen · evaluasi · sumber</span>
+├─ scripts/ <span class="dim">ingest · serve · evaluasi</span>
+├─ deploy/k8s/ <span class="dim">Qdrant · API · router</span>
+├─ results/ <span class="dim">hasil evaluasi</span>
+└─ tests/ <span class="dim">106 tes · 20 berkas</span></pre></div>
+          <div class="module-grid">
+            <article class="module glass"><div class="label">INGESTION</div><b>Parsing · chunking · indeks</b><p>PDF/Markdown, metadata halaman, ukuran chunk 512 dan overlap 100.</p></article>
+            <article class="module glass"><div class="label">RETRIEVAL</div><b>Dense · sparse · RRF</b><p>Satu koleksi Qdrant dengan named vectors; metrik Recall@k dan MRR.</p></article>
+            <article class="module glass"><div class="label">GENERASI</div><b>Jawaban berbasis konteks</b><p>Pipeline, prompt sitasi, deteksi penolakan, dan validasi.</p></article>
+            <article class="module glass"><div class="label">OPERASIONAL</div><b>FastAPI · Kubernetes</b><p>OpenAPI 3.1, kind, Qdrant, dan gateway model.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-title="Pertimbangan pemilihan teknologi" data-notes="Pilihan teknologi mencerminkan kebutuhan penyimpanan vektor ganda, korpus multibahasa, operasi lokal, dan keterlacakan metadata. Dampaknya juga terukur: reranker lokal tidak memenuhi target waktu pada CPU yang digunakan. Cohere dan model Sonnet belum dibandingkan langsung dalam evaluasi ini.">
+        <div class="section-head"><div><div class="eyebrow">05 / PERTIMBANGAN TEKNOLOGI</div><h2>Alasan pemilihan<br>komponen.</h2></div><p class="lead">Komponen dipilih berdasarkan kebutuhan data dan lingkungan eksperimen. Trade-off kinerja dan integrasi dicatat bersama tiap keputusan.</p></div>
+        <div class="choice-table">
+          <article class="choice glass"><div class="choice-top"><h3>Qdrant</h3><span class="versus">VS BASIS DATA TERPISAH</span></div><div class="selected-value">Satu koleksi · dense + sparse</div><p>Named vectors dan RRF didukung dalam satu basis data, sehingga indeks dense dan sparse tidak perlu dikelola sebagai layanan terpisah.</p></article>
+          <article class="choice glass"><div class="choice-top"><h3>BGE-M3</h3><span class="versus">VS DUA MODEL EMBEDDING</span></div><div class="selected-value">Dense + sparse · satu model</div><p>Mendukung korpus multibahasa Indonesia–Inggris dan menghasilkan dua representasi dalam satu proses inferensi.</p></article>
+          <article class="choice glass"><div class="choice-top"><h3>Reranker lokal</h3><span class="versus">VS COHERE API</span></div><div class="selected-value">bge-reranker-v2-m3 · tanpa API key</div><p>Memungkinkan eksperimen lokal. Namun, waktu reranking pada CPU jauh melampaui target; Cohere tersedia sebagai provider alternatif, tetapi belum diuji.</p></article>
+          <article class="choice glass"><div class="choice-top"><h3>QdrantManager</h3><span class="versus">VS ABSTRAKSI LLAMAINDEX</span></div><div class="selected-value">Metadata chunk eksplisit</div><p>Pipeline memanggil QdrantManager untuk mengendalikan retrieval dan metadata sitasi. Wrapper LlamaIndex tetap tersedia untuk retriever.</p></article>
+          <article class="choice glass"><div class="choice-top"><h3>Endpoint kompatibel OpenAI</h3><span class="versus">VS KONEKSI ANTHROPIC LANGSUNG</span></div><div class="selected-value">Model aktif: Haiku melalui 9router</div><p>Endpoint yang tersedia digunakan dalam implementasi. PRD menargetkan Claude Sonnet; kualitas relatif kedua model belum dievaluasi.</p></article>
+          <article class="choice glass"><div class="choice-top"><h3>FastAPI + SSE</h3><span class="versus">VS API TANPA KONTRAK TERBUKA</span></div><div class="selected-value">REST · streaming · OpenAPI 3.1</div><p>Kontrak dapat digunakan di Apidog/Postman. SSE mengirim potongan jawaban dan metadata penutup, termasuk TTFT.</p></article>
+        </div>
+        <div class="decision-note glass"><strong>Batas operasional:</strong> reranker lokal tercatat lambat pada CPU dan hasil latensinya terdampak tekanan memori. API Qdrant dan router belum memiliki autentikasi, sehingga deployment perlu dibatasi pada jaringan tepercaya.</div>
+      </section>
+
+      <section class="slide" data-title="Hasil Skenario 1–2" data-notes="Kedua skenario memakai korpus 223 chunk, delapan pertanyaan relevan, 25 kandidat, lima konteks akhir, dan reranker lokal pada CPU. Recall@5 naik dari 0,625 menjadi 0,8125 pada dense maupun sparse. Satu pertanyaan tentang urutan penanganan page fault tetap tidak memperoleh chunk relevan pada lima posisi teratas. Pengukuran waktu terdampak swap penuh dan OOM Qdrant, sehingga tidak mewakili benchmark stabil. Generator tidak dijalankan dalam evaluasi ini.">
+        <div class="section-head"><div><div class="eyebrow">06 / HASIL EVALUASI</div><h2>Skenario 1–2.</h2></div><p class="lead">Pada delapan pertanyaan, reranking meningkatkan Recall@5 untuk baseline dense dan sparse. Target PRD sebesar 90% belum tercapai.</p></div>
+        <div class="scenario-wrap">
+          <div class="scenario-list" role="tablist" aria-label="Perbandingan skenario">
+            <button class="scenario-tab glass active" role="tab" aria-selected="true" data-scenario="1"><span class="tab-top"><b>01 · DENSE</b><span class="label">SELESAI</span></span><p>Baseline semantik + reranker</p></button>
+            <button class="scenario-tab glass" role="tab" aria-selected="false" data-scenario="2"><span class="tab-top"><b>02 · SPARSE</b><span class="label">SELESAI</span></span><p>Baseline leksikal + reranker</p></button>
+          </div>
+          <article class="scenario-detail glass" aria-live="polite">
+            <div>
+              <div class="scenario-title"><div><div class="label" id="scenarioMode">SKENARIO 01 · DENSE + RERANKING</div><h3 id="scenarioHeading">Peningkatan terlihat.<br>Target belum tercapai.</h3><p class="small muted" id="scenarioSub">BAAI/bge-reranker-v2-m3 · CPU · kandidat 25 → konteks 5</p></div><span class="pill">8 QUERY</span></div>
+              <div class="metric-bars">
+                <div class="bar-row"><span>Recall@5</span><div class="bar"><i id="recallBar" style="--value:81.25%"></i></div><strong id="recallValue">81.3%</strong></div>
+                <div class="bar-row"><span>MRR@5</span><div class="bar"><i id="mrrBar" style="--value:69.17%"></i></div><strong id="mrrValue">0.692</strong></div>
+                <div class="bar-row"><span>Recall@25</span><div class="bar"><i style="--value:100%"></i></div><strong>1.000</strong></div>
+              </div>
+              <div class="scenario-insight"><p id="scenarioInsight">Dibanding baseline dense tanpa reranker, Recall@5 meningkat dari 0,625 menjadi 0,8125 (+0,1875). Nilai ini masih di bawah target PRD &gt;90%. Pada pertanyaan tentang urutan penanganan page fault, Recall@5 turun dari 0,500 menjadi 0,000.</p><span class="caveat">Latensi terdampak tekanan memori</span></div>
+            </div>
+            <div class="small muted" style="margin-top:14px">Median reranking tercatat 73,7 detik per pertanyaan saat swap host penuh. Angka ini tidak representatif sebagai benchmark stabil. Generator tidak dijalankan pada evaluasi ini.</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="slide" data-title="Skenario lanjutan" data-notes="Skenario 3 menguji hybrid retrieval dengan reranker, sedangkan Skenario 4 menguji hybrid tanpa reranker. Keduanya belum dijalankan dalam hasil yang tersedia. Recall@25 bernilai 1,000 pada semua konfigurasi yang sudah diukur, sehingga Recall@5 dan MRR lebih informatif untuk perbandingan. Groundedness, citation precision, refusal accuracy, dan TTFT juga belum memiliki hasil evaluasi kuantitatif.">
+        <div class="section-head"><div><div class="eyebrow">07 / EVALUASI LANJUTAN</div><h2>Skenario 3–4.</h2></div><p class="lead">Kedua skenario belum dijalankan. Rancangannya membandingkan kontribusi RRF dan reranker pada jalur hybrid.</p></div>
+        <div class="coming-grid">
+          <article class="coming-card glass"><div><div class="status">BELUM DIJALANKAN · 03</div><h3>Hybrid dengan reranker</h3><p>RRF menggabungkan hasil dense dan sparse. Cross-encoder kemudian mengurutkan 25 kandidat untuk memilih lima chunk konteks.</p></div><div><span class="pill">KONTRIBUSI RRF</span><span class="pill">RECALL@5 · MRR</span></div></article>
+          <article class="coming-card glass"><div><div class="status">BELUM DIJALANKAN · 04</div><h3>Hybrid tanpa reranker</h3><p>Ablasi membandingkan hybrid retrieval tanpa cross-encoder dengan konfigurasi hybrid yang menggunakan reranker pada korpus dan set evaluasi yang sama.</p></div><div><span class="pill">ABLATION BASELINE</span><span class="pill">KORPUS YANG SAMA</span></div></article>
+        </div>
+        <div class="stats" style="margin-top:15px">
+          <div class="stat glass"><div class="label">RECALL@25</div><b>1.000</b><span>pada semua konfigurasi terukur</span></div>
+          <div class="stat glass"><div class="label">METRIK PEMBEDA</div><b>@5 + MRR</b><span>lebih informatif untuk perbandingan</span></div>
+          <div class="stat glass"><div class="label">TTFT</div><b>Belum diukur</b><span>target PRD &lt; 2,5 detik</span></div>
+          <div class="stat glass"><div class="label">GROUNDEDNESS</div><b>Belum diukur</b><span>target PRD &gt; 95%</span></div>
+        </div>
+      </section>
+
+      <section class="slide" data-title="Kesimpulan" data-notes="Implementasi saat ini mencakup ingestion, hybrid retrieval, reranking, generasi, validasi sitasi, dan API. Reranker meningkatkan Recall@5 dari 0,625 menjadi 0,8125, tetapi belum memenuhi target PRD lebih dari 0,90. Waktu reranking lokal pada CPU jauh di atas target dan pengukurannya terdampak tekanan memori. Skenario 3–4 serta metrik generasi dan TTFT belum tersedia. Validator sitasi telah diimplementasikan, tetapi akurasinya belum diukur.">
+        <div class="eyebrow">08 / KESIMPULAN</div>
+        <div class="finish">
+          <div>
+            <h2>Implementasi dan<br><span class="muted">status evaluasi.</span></h2>
+            <p class="lead">Zenos memiliki alur retrieval bertahap, metadata konteks yang terlacak, validasi sitasi, dan API. Hasil awal menunjukkan peningkatan Recall@5, sementara target dan metrik generasi belum terverifikasi.</p>
+            <div class="next-steps">
+              <div class="next-step glass"><b>01 · Evaluasi retrieval</b><span>Skenario 3–4 belum dijalankan; Recall@5 dan MRR menjadi metrik pembanding.</span></div>
+              <div class="next-step glass"><b>02 · Evaluasi generasi</b><span>Groundedness, presisi sitasi, dan akurasi penolakan belum terukur.</span></div>
+              <div class="next-step glass"><b>03 · Evaluasi latensi</b><span>TTFT belum divalidasi; pengukuran reranker CPU terdampak tekanan memori.</span></div>
+            </div>
+            <div class="source-foot">Recall@5: 0,625 → 0,8125 setelah reranking · target PRD: &gt; 0,90 · sampel: 8 pertanyaan</div>
+          </div>
+          <div class="finish-visual" aria-hidden="true"><div class="orbit"></div><div class="orbit two"></div><div class="finish-core"><span>ZENOS<br>BERBASIS<br>BUKTI</span></div></div>
+        </div>
+      </section>
+
+      <section class="slide" data-title="Daftar pustaka dan sumber" data-notes="Literatur di halaman ini menjadi rujukan konsep dan metode untuk uraian RAG, dense retrieval, rank fusion, reranking, embedding, dan evaluasi. Ringkasan ditulis ulang, bukan kutipan langsung. Hasil numerik dan detail implementasi tetap bersumber dari dokumentasi serta artefak proyek. Ragas dicantumkan sebagai kerangka evaluasi yang tersedia di proyek, tetapi belum dijalankan.">
+        <div class="section-head">
+          <div><div class="eyebrow">09 / DAFTAR PUSTAKA</div><h2>Literatur dan<br>sumber proyek.</h2></div>
+          <p class="lead">Paper mendasari istilah dan metode yang dibahas. Dokumen proyek menjadi sumber utama untuk detail implementasi serta hasil.</p>
+        </div>
+        <div class="bibliography-grid">
+          <article class="bibliography-card glass">
+            <div class="label">RAG · LANDASAN KONSEP</div>
+            <h3><a href="https://proceedings.neurips.cc/paper/2020/hash/6b493230205f780e1bc26945df7481e5-Abstract.html" target="_blank" rel="noreferrer">Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks</a></h3>
+            <p>Lewis et al. · NeurIPS 2020 · arXiv:2005.11401<br>Rujukan konsep generasi yang menggabungkan model bahasa dengan pengetahuan eksternal hasil retrieval.</p>
+          </article>
+          <article class="bibliography-card glass">
+            <div class="label">DENSE RETRIEVAL</div>
+            <h3><a href="https://aclanthology.org/2020.emnlp-main.550/" target="_blank" rel="noreferrer">Dense Passage Retrieval for Open-Domain Question Answering</a></h3>
+            <p>Karpukhin et al. · EMNLP 2020, hlm. 6769–6781<br>Dasar pembahasan retrieval dense berbasis representasi vektor untuk pemilihan konteks.</p>
+          </article>
+          <article class="bibliography-card glass">
+            <div class="label">FUSION · RRF</div>
+            <h3><a href="https://doi.org/10.1145/1571941.1572114" target="_blank" rel="noreferrer">Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods</a></h3>
+            <p>Cormack, Clarke, dan Buettcher · SIGIR 2009, hlm. 758–759<br>Rujukan metode penggabungan peringkat yang digunakan pada pencarian hybrid Zenos.</p>
+          </article>
+          <article class="bibliography-card glass">
+            <div class="label">EMBEDDING · BGE-M3</div>
+            <h3><a href="https://arxiv.org/abs/2402.03216" target="_blank" rel="noreferrer">M3-Embedding: Multi-Linguality, Multi-Functionality, Multi-Granularity Text Embeddings Through Self-Knowledge Distillation</a></h3>
+            <p>Chen et al. · 2024 · arXiv:2402.03216<br>Publikasi model yang mendukung pencarian multilingual serta representasi dense dan sparse BGE-M3.</p>
+          </article>
+          <article class="bibliography-card glass">
+            <div class="label">RERANKING</div>
+            <h3><a href="https://arxiv.org/abs/1901.04085" target="_blank" rel="noreferrer">Passage Re-ranking with BERT</a></h3>
+            <p>Nogueira dan Cho · 2019 · arXiv:1901.04085<br>Rujukan penggunaan model cross-encoder untuk mengurutkan ulang kandidat passage berdasarkan query.</p>
+          </article>
+          <article class="bibliography-card glass">
+            <div class="label">EVALUASI RAG · RAGAS</div>
+            <h3><a href="https://arxiv.org/abs/2309.15217" target="_blank" rel="noreferrer">Ragas: Automated Evaluation of Retrieval Augmented Generation</a></h3>
+            <p>Es et al. · 2023 · arXiv:2309.15217<br>Kerangka metrik untuk retrieval dan generasi RAG; tersedia secara opsional di proyek, belum dijalankan.</p>
+          </article>
+        </div>
+        <div class="project-sources">
+          <span class="label">SUMBER IMPLEMENTASI</span>
+          <a class="source-chip" href="../README.md" target="_blank" rel="noreferrer">README Zenos</a>
+          <a class="source-chip" href="../reference/openapi.yaml" target="_blank" rel="noreferrer">OpenAPI 3.1</a>
+          <a class="source-chip" href="../results/scenarios-1-2.md" target="_blank" rel="noreferrer">Hasil Skenario 1–2</a>
+          <a class="source-chip" href="../results/phase2-recall.md" target="_blank" rel="noreferrer">Baseline retrieval</a>
+          <a class="source-chip" href="https://qdrant.tech/documentation/search/hybrid-queries/" target="_blank" rel="noreferrer">Dokumentasi Qdrant</a>
+        </div>
+        <p class="bibliography-note">Uraian metodologis pada slide merupakan parafrasa. Angka evaluasi dan keputusan implementasi merujuk pada artefak proyek; hasil Ragas dan Skenario 3–4 belum tersedia.</p>
+      </section>
+    </div>
+  </main>
+  <footer class="footer">
+    <div class="slide-count"><strong id="currentCount">01</strong><span> / 09</span></div>
+    <div class="dots" id="dots" aria-label="Navigasi slide"></div>
+    <div class="controls"><span class="key-hint">← → navigasi</span><button class="nav-btn" id="prev" aria-label="Slide sebelumnya">←</button><button class="nav-btn" id="next" aria-label="Slide berikutnya">→</button></div>
+  </footer>
+  <aside class="notes-panel" id="notesPanel" aria-live="polite"><div class="label">PRESENTER NOTES</div><h3 id="notesTitle">Project Zenos</h3><p id="notesText"></p></aside>
+  <div class="toast" id="toast" role="status"></div>
+  <script>
+    (function () {
+      const slides = Array.from(document.querySelectorAll(".slide"));
+      const dots = document.getElementById("dots");
+      const currentCount = document.getElementById("currentCount");
+      const progress = document.getElementById("progress");
+      const prev = document.getElementById("prev");
+      const next = document.getElementById("next");
+      const notesPanel = document.getElementById("notesPanel");
+      const toast = document.getElementById("toast");
+      let index = 0;
+      let toastTimer;
+
+      slides.forEach((slide, i) => {
+        const dot = document.createElement("button");
+        dot.className = "dot";
+        dot.setAttribute("aria-label", "Buka slide " + (i + 1) + ": " + slide.dataset.title);
+        dot.addEventListener("click", () => showSlide(i));
+        dots.appendChild(dot);
+      });
+
+      function showSlide(nextIndex) {
+        index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+        slides.forEach((slide, i) => {
+          slide.classList.toggle("active", i === index);
+          slide.setAttribute("aria-hidden", i === index ? "false" : "true");
+        });
+        Array.from(dots.children).forEach((dot, i) => dot.classList.toggle("active", i === index));
+        currentCount.textContent = String(index + 1).padStart(2, "0");
+        progress.style.width = ((index + 1) / slides.length * 100) + "%";
+        prev.disabled = index === 0;
+        next.disabled = index === slides.length - 1;
+        document.getElementById("notesTitle").textContent = slides[index].dataset.title;
+        document.getElementById("notesText").textContent = slides[index].dataset.notes;
+        notesPanel.classList.remove("open");
+        slides[index].scrollTop = 0;
+      }
+      prev.addEventListener("click", () => showSlide(index - 1));
+      next.addEventListener("click", () => showSlide(index + 1));
+
+      document.addEventListener("keydown", event => {
+        if (event.altKey || event.ctrlKey || event.metaKey) return;
+        if (event.key === "ArrowRight" || event.key === " " || event.key === "PageDown") {
+          event.preventDefault(); showSlide(index + 1);
+        } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+          event.preventDefault(); showSlide(index - 1);
+        } else if (event.key === "Home") showSlide(0);
+        else if (event.key === "End") showSlide(slides.length - 1);
+        else if (event.key.toLowerCase() === "n") notesPanel.classList.toggle("open");
+        else if (event.key.toLowerCase() === "f") toggleFullscreen();
+        else if (event.key === "Escape") notesPanel.classList.remove("open");
+      });
+      document.getElementById("notesToggle").addEventListener("click", () => notesPanel.classList.toggle("open"));
+      function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => showToast("Mode layar penuh tidak tersedia di browser ini."));
+        } else document.exitFullscreen();
+      }
+      document.getElementById("fullscreenToggle").addEventListener("click", toggleFullscreen);
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove("show"), 2300);
+      }
+
+      const flowNodes = Array.from(document.querySelectorAll(".flow-node"));
+      flowNodes.forEach(node => node.addEventListener("click", () => {
+        flowNodes.forEach(item => item.classList.toggle("selected", item === node));
+        document.getElementById("flowName").textContent = node.dataset.name;
+        document.getElementById("flowDescription").textContent = node.dataset.detail;
+      }));
+
+      const scenarioData = {
+        1: {
+          mode: "SKENARIO 01 · DENSE + RERANKING",
+          heading: "Peningkatan terlihat.<br>Target belum tercapai.",
+          sub: "BAAI/bge-reranker-v2-m3 · CPU · kandidat 25 → konteks 5",
+          recall: "81.3%", recallWidth: "81.25%", mrr: "0.692", mrrWidth: "69.17%",
+          insight: "Dibanding baseline dense tanpa reranker, Recall@5 meningkat dari 0,625 menjadi 0,8125 (+0,1875). Nilai ini masih di bawah target PRD >90%. Pada pertanyaan tentang urutan penanganan page fault, Recall@5 turun dari 0,500 menjadi 0,000."
+        },
+        2: {
+          mode: "SKENARIO 02 · SPARSE + RERANKING",
+          heading: "Hasil sebanding.<br>Beberapa pertanyaan masih gagal.",
+          sub: "BAAI/bge-reranker-v2-m3 · CPU · kandidat 25 → konteks 5",
+          recall: "81.3%", recallWidth: "81.25%", mrr: "0.688", mrrWidth: "68.8%",
+          insight: "Recall@5 meningkat dari 0,625 menjadi 0,8125 (+0,1875), setara dengan baseline dense. Pertanyaan tentang asas UU PDP memperoleh konteks relevan, sedangkan pertanyaan tentang urutan page fault tetap bernilai 0,000. Generasi tidak dievaluasi."
+        }
+      };
+      document.querySelectorAll(".scenario-tab").forEach(tab => tab.addEventListener("click", () => {
+        const data = scenarioData[tab.dataset.scenario];
+        document.querySelectorAll(".scenario-tab").forEach(item => {
+          const active = item === tab;
+          item.classList.toggle("active", active);
+          item.setAttribute("aria-selected", String(active));
+        });
+        document.getElementById("scenarioMode").textContent = data.mode;
+        document.getElementById("scenarioHeading").innerHTML = data.heading;
+        document.getElementById("scenarioSub").textContent = data.sub;
+        document.getElementById("recallValue").textContent = data.recall;
+        document.getElementById("recallBar").style.setProperty("--value", data.recallWidth);
+        document.getElementById("mrrValue").textContent = data.mrr;
+        document.getElementById("mrrBar").style.setProperty("--value", data.mrrWidth);
+        document.getElementById("scenarioInsight").textContent = data.insight;
+      }));
+
+      let touchStartX = 0;
+      document.addEventListener("touchstart", event => { touchStartX = event.changedTouches[0].screenX; }, { passive: true });
+      document.addEventListener("touchend", event => {
+        const delta = event.changedTouches[0].screenX - touchStartX;
+        if (Math.abs(delta) > 65) showSlide(index + (delta < 0 ? 1 : -1));
+      }, { passive: true });
+      showSlide(0);
+    })();
+  </script>
+</body>
+</html>
