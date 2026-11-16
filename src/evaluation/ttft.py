@@ -2,11 +2,18 @@
 
 import statistics
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 
-def measure_ttft(pipeline: Any, query: str) -> Dict[str, Any]:
-    """Measure TTFT and total latency for one query.
+def measure_ttft_with_context(
+    pipeline: Any, query: str
+) -> Tuple[Dict[str, Any], List[Any]]:
+    """Run one full turn and return both the TTFT row and the context chunks.
+
+    The context chunks are returned alongside the row because grounding metrics need
+    them to validate the citation tags found in the answer (a tag is only valid when it
+    points at a chunk that was really supplied).  ``measure_ttft`` is the row-only
+    convenience wrapper.
 
     The timer starts *before* retrieval, so ``ttft_ms`` covers
     retrieve + rerank + time-to-first-token (matching the PRD definition of the
@@ -28,7 +35,7 @@ def measure_ttft(pipeline: Any, query: str) -> Dict[str, Any]:
     text = "".join(parts)
     answer = pipeline.generator.finalize(query, reranked, text)
 
-    return {
+    row = {
         "query": query,
         "ttft_ms": first_token_ms if first_token_ms is not None else total_ms,
         "retrieval_ms": retrieval_ms,
@@ -39,6 +46,13 @@ def measure_ttft(pipeline: Any, query: str) -> Dict[str, Any]:
         "num_contexts": len(reranked),
         "answer": text,
     }
+    return row, list(reranked)
+
+
+def measure_ttft(pipeline: Any, query: str) -> Dict[str, Any]:
+    """Measure TTFT and total latency for one query."""
+    row, _ = measure_ttft_with_context(pipeline, query)
+    return row
 
 
 def _percentile(sorted_values: List[float], p: float) -> float:

@@ -18,8 +18,8 @@ tidak ada di konteks, sistem harus menolak menjawab.
 | Generator | LLM via endpoint OpenAI-compatible, prompt sitasi ketat |
 | Serving | FastAPI (6 endpoint, termasuk SSE), OpenAPI 3.1 |
 | Deployment | Kubernetes (`kind`, namespace `zenos`), akses via port-forward |
-| Tes | **106 passed** |
-| Evaluasi terdokumentasi | Scenario 1 & 2 (baseline dense & sparse + reranker) |
+| Tes | **117 passed** |
+| Evaluasi terdokumentasi | 4 skenario retrieval (dense · sparse · hybrid ± reranker) + metrik generasi (groundedness, citation precision, refusal, TTFT) |
 
 ---
 
@@ -232,45 +232,92 @@ Sumber: [`results/phase2-recall.md`](results/phase2-recall.md)
 | sparse | 1.000 | 0.625 |
 | hybrid (RRF k=60) | 1.000 | **0.688** |
 
-### Scenario 1 & 2 — dengan reranker
+### Keempat skenario (hasil utama)
 
 Sumber: [`results/scenarios-1-2.md`](results/scenarios-1-2.md) ·
-[`results/scenarios-1-2.json`](results/scenarios-1-2.json)
+[`results/scenarios-3-4.md`](results/scenarios-3-4.md) · data mentah:
+`results/scenarios-{1-2,3,4}.json` dan `results/generation-{3,4}.json`
 
-| Skenario | Mode | Rerank | Recall@25 | MRR@25 | **Recall@5** | MRR@5 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | dense | ya | 1.000 | 0.535 | **0.812** | 0.692 |
-| 2 | sparse | ya | 1.000 | 0.596 | **0.812** | 0.688 |
+| Skenario | Mode | Reranker | Recall@25 | MRR@25 | **Recall@5** | MRR@5 | Retrieval ms | Rerank ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | dense | ya | 1.000 | 0.535 | **0.812** | 0.692 | 2 815 | 67 914 |
+| 2 | sparse | ya | 1.000 | 0.596 | **0.812** | 0.688 | 2 310 | 67 866 |
+| 3 | hybrid | ya | 1.000 | **0.623** | **0.812** | 0.681 | 1 778 | 39 671 |
+| 4 | hybrid | tidak | 1.000 | 0.623 | **0.688** | 0.594 | 2 082 | 0 |
+
+### Kontribusi tiap komponen
+
+| Perbandingan | Metrik | Hasil | Kesimpulan |
+| --- | --- | --- | --- |
+| S3 vs S1 & S2 — fusion RRF | MRR@25 | 0.623 vs 0.596 / 0.535 | RRF menaikkan posisi bukti di dalam pool |
+| S3 vs S1 & S2 | Recall@5 | 0.812 = 0.812 = 0.812 | setelah rerank, mode retrieval jadi tidak menentukan |
+| S3 vs S4 — reranker | Recall@5 | **+0.124** | reranker menambah recall |
+| S3 vs S4 | MRR@5 | **+0.087** | reranker juga memperbaiki urutan |
+| S3 vs S4 | Recall@25, MRR@25 | 0.000 (identik) | pool kandidat sama — bukti ablasi benar-benar bersih |
+
+### Metrik generasi (Scenario 3 & 4)
+
+Sumber: [`results/scenarios-3-4.md`](results/scenarios-3-4.md) (Bagian B — generasi)
+
+| Metrik | Target PRD | Scenario 3 (reranker) | Scenario 4 (tanpa reranker) |
+| --- | --- | --- | --- |
+| Groundedness | > 95% | 0,653 (32/49 klaim) | 0,727 (32/44 klaim) |
+| Citation precision | — | **1,000** (33/33 tag) | **1,000** (35/35 tag) |
+| Refusal accuracy | harus menolak | 1,000 (1/1) | 0,000 (0/1) |
+| **TTFT** (mean / p95) | **< 2,5 s** | **67,3 s / 99,5 s** | **5,7 s / 15,4 s** |
+
+Rincian TTFT: reranker menyumbang ~54 s (55,3 s vs 1,5 s retrieval); LLM sampai token pertama
+4,1 s di Scenario 4 — sudah di atas anggaran 2,5 s sebelum retrieval dihitung.
 
 ### Target vs capaian
 
 | Metrik | Target PRD | Hasil | Status |
 | --- | --- | --- | --- |
-| Recall@5 | > 90% | **81,3%** | belum tercapai (terdekat sejauh ini) |
-| Recall@25 | — | 1.000 di semua mode | saturasi; tidak bisa membandingkan skenario |
-| Groundedness | > 95% | belum diukur | validator sitasi sudah ada, harness-nya belum |
-| Citation Precision | — | belum diukur | idem |
-| Refusal Accuracy | — | belum diukur | idem (1 pertanyaan *negative control* tersedia) |
-| TTFT | < 2,5 s | belum diukur | **berisiko**: reranker lokal saja 73,7 s/query di CPU ini |
+| Recall@5 | > 90% | **81,3%** | belum tercapai; tak ada skenario yang mencapainya |
+| Recall@25 | — | 1.000 di semua skenario | saturasi, tidak diskriminatif |
+| MRR | — | 0.535–0.692 | punya daya beda (lihat MRR@25 S3 vs S1/S2) |
+| Groundedness | > 95% | **65,3–72,7%** | belum tercapai |
+| Citation precision | — | **100%** (68/68 tag valid) | **terpenuhi** — nol sitasi dikarang |
+| Refusal Accuracy | harus menolak | **tidak stabil**: 1/1 (S3), 0/1 (S4) | butuh lebih dari satu control |
+| TTFT | < 2,5 s | **5,7 s (S4) – 67,3 s (S3)** | belum; LLM sendiri sudah 4,1 s |
 
 ### Temuan utama
 
-1. **Reranker adalah pengungkit terbesar yang terukur.** Recall@5 naik **0,625 → 0,812
-   (+0,187)** di kedua mode, dan MRR@5 ~0,69 — bukti tidak hanya masuk konteks, tapi naik ke
-   atas. Pertanyaan *"asas UU PDP"* yang gagal total (0,000) di semua mode tanpa reranker
-   kini 1,000.
-2. **Tapi tidak seragam.** *"Urutan penanganan page fault"* justru **turun** dari 0,500
-   (dense polos) menjadi 0,000 setelah rerank. Satu pertanyaan mundur, empat maju — rata-rata
-   menyembunyikan ini, jadi pelaporan per-pertanyaan itu wajib.
-3. **Setelah rerank, pilihan mode retrieval jadi tidak relevan.** Dense dan sparse sama-sama
-   mendarat di 0,812 meski pool-nya berbeda (MRR@25 0,535 vs 0,596). Karena Recall@25 = 1,000
-   di semua konfigurasi, **perbandingan Scenario 3 vs 1 & 2 (kontribusi RRF) hampir tidak
-   punya ruang untuk menunjukkan keunggulan di korpus ini** — Recall@5 dan MRR harus jadi
-   metrik utama, bukan Recall@25.
-4. **Reranker lokal tidak layak untuk target latensi.** Median 73,7 s/query untuk menilai 25
-   kandidat di CPU (vs anggaran TTFT 2,5 s). Perlu Cohere API atau GPU. Angka ini juga
-   terkontaminasi tekanan memori host (swap penuh 8/8 GB, pod Qdrant `OOMKilled` setelah
-   run) — jadi perlakukan sebagai batas atas, tapi kesimpulan relatifnya tetap.
+1. **RRF akhirnya terukur berkontribusi — lewat MRR@25, bukan Recall@25.** Hybrid 0,623 >
+   sparse 0,596 > dense 0,535: fusion menaikkan posisi bukti di dalam pool kandidat.
+   Recall@25 = 1,000 untuk ketiganya sehingga buta terhadap perbedaan ini — persis alasan PRD
+   menyebut MRR sebagai metrik pendamping.
+2. **Tapi keunggulan fusion itu hilang setelah reranker.** Recall@5 ketiga skenario ber-reranker
+   seri di 0,812, dan MRR@5 justru sedikit memihak dense (0,692) dibanding hybrid (0,681).
+   Setelah ada cross-encoder, pilihan mode retrieval hampir tidak lagi menentukan hasil akhir.
+3. **Keuntungan reranker bertumpu pada satu pertanyaan.** Seluruh kenaikan Recall@5 dari
+   0,688 → 0,812 berasal dari *"asas Pelindungan Data Pribadi"* (0,000 → 1,000); tujuh
+   pertanyaan lain tidak berubah. Nilai reranker yang lebih meyakinkan ada di *pengurutan* —
+   contohnya MMU, di mana MRR@5 naik 0,500 → 1,000.
+4. **Dua pertanyaan gagal secara sistematis di semua konfigurasi.** *"Urutan penanganan page
+   fault"* = 0,000 di 6 dari 6 konfigurasi yang pernah diukur, dan *"TLB hit vs TLB miss"*
+   mentok 0,500 di semua skenario ber-reranker. Karena Recall@25 = 1,000 (buktinya *ada* di
+   pool, di ranking 6–25), ini **kegagalan pemeringkatan, bukan retrieval** — dan karena
+   konsisten lintas mode, tersangkanya reranker, chunking, atau ground-truth-nya sendiri. Ini
+   item investigasi nomor satu.
+5. **Reranker lokal ~40 s/query**, bahkan dengan memori sehat — 16× di atas anggaran TTFT
+   2,5 s. (Angka 73,7 s di run Scenario 1 & 2 ternyata menggelembung ~2× karena swap penuh;
+   yang "bersih" 39,7 s.) Perlu Cohere API atau GPU.
+6. **Dua harness independen saling memvalidasi.** Scenario 4 (jalur baru
+   `evaluate_scenarios.py`) memberi Recall@5 = 0,688, identik sampai 4 desimal dengan
+   `evaluate_recall.py --mode hybrid --k 5` (jalur lama).
+7. **Nol sitasi dikarang.** Citation precision **1,000 di kedua skenario generasi** (68 dari 68
+   tag menunjuk chunk yang benar-benar dikirim ke model). Jadi kekurangan grounding **bukan**
+   halusinasi sumber, melainkan **tag yang hilang** pada sebagian kalimat — yang perlu
+   diperbaiki adalah kepatuhan format, bukan kejujuran model.
+8. **Target TTFT tidak tercapai bahkan tanpa reranker.** Scenario 4 = 5,7 s (p95 15,4 s),
+   karena LLM sampai token pertama saja 4,1 s. Artinya perbaikan retrieval apa pun tidak akan
+   cukup — perlu endpoint LLM yang lebih cepat.
+9. **Refusal belum bisa diandalkan.** Scenario 3 menolak negative control, Scenario 4
+   menjawabnya (dengan dua sitasi yang valid!), dan run Scenario 4 sebelumnya menolak. Dengan
+   satu control, angkanya 0/1 atau 1/1 tergantung undian. Kasus Scenario 4 itu juga
+   memperlihatkan batas metrik deterministik: **sitasi valid ≠ jawaban benar** — alasan PRD
+   menyebut Ragas sebagai indikator pendamping.
 
 ---
 
@@ -300,9 +347,15 @@ python scripts/serve.py --port 8010        # docs di http://127.0.0.1:8010/docs
 # 6. Evaluasi
 python scripts/evaluate_recall.py --mode hybrid --k 25
 python scripts/evaluate_scenarios.py --scenarios 1,2 --out results/scenarios-1-2.json
+python scripts/evaluate_scenarios.py --scenarios 4 --out results/scenarios-4.json
+python scripts/evaluate_scenarios.py --scenarios 3 --out results/scenarios-3.json
 
-# 7. Tes
-.venv/bin/python -m pytest -q              # 106 passed
+# 7. Metrik generasi (butuh Qdrant DAN endpoint LLM via port-forward)
+python scripts/evaluate_generation.py --scenarios 4 --out results/generation-4.json
+python scripts/evaluate_generation.py --scenarios 3 --out results/generation-3.json
+
+# 8. Tes
+.venv/bin/python -m pytest -q
 ```
 
 Rincian API dan model data ada di [`docs/API.md`](docs/API.md); spesifikasi HTTP-nya di
@@ -321,9 +374,9 @@ src/            config.py · models.py
   reranking/    cross-encoder lokal & Cohere
   generation/   pipeline · generator · prompts (sitasi + validasi)
   api/          app · schemas · deps (FastAPI)
-  evaluation/   ragas_eval · ttft
-scripts/        fetch_corpus · setup_db · ingest · ask · serve ·
-                evaluate_recall · evaluate_scenarios · benchmark_ttft · evaluate_ragas
+  evaluation/   grounding (groundedness, citation precision) · ttft · ragas_eval
+scripts/        fetch_corpus · setup_db · ingest · ask · serve · evaluate_recall ·
+                evaluate_scenarios · evaluate_generation · benchmark_ttft · evaluate_ragas
 data/
   sample_docs/  korpus (3 dokumen)
   eval/         sample_corpus.py · build_eval_set.py (ground truth berbasis anchor)
@@ -331,7 +384,7 @@ data/
 deploy/k8s/     namespace · qdrant · nine-router · api · kustomization
 results/        artefak hasil evaluasi (md + json)
 docs/           API.md · openapi.yaml
-tests/          106 tes (20 berkas)
+tests/          117 tes (21 berkas)
 ```
 
 ---
@@ -340,15 +393,23 @@ tests/          106 tes (20 berkas)
 
 Jujur soal batasnya:
 
-* **Scenario 3 & 4 belum dijalankan.** Runner-nya sudah ada dan keempat skenario sudah
-  terdefinisi: `python scripts/evaluate_scenarios.py --scenarios 3,4` (3 = hybrid + reranker,
-  4 = hybrid tanpa reranker untuk ablasi). Estimasi ~10 menit per skenario ber-rerank di mesin
-  ini, dan berisiko OOM.
-* **Metrik generasi belum ada harness-nya**: groundedness, citation precision, refusal
-  accuracy, dan TTFT. Komponennya sudah siap (`GroundedAnswer.grounded` / `.refused`,
-  validator sitasi, endpoint SSE dengan `ttft_ms`) — tinggal runner-nya.
-* **Target TTFT belum realistis** dengan reranker lokal di CPU; perlu Cohere API atau GPU.
-* **Ragas** masih opsional dan belum dijalankan.
+* **Target Recall@5 belum tercapai** (81,3% vs > 90%), dan **tidak ada skenario yang
+  mencapainya**. Dua pertanyaan gagal konsisten di semua konfigurasi — perbaikannya harus
+  menyasar reranking, chunking, atau ground-truth-nya, bukan menambah korpus atau mengganti
+  mode retrieval.
+* **Metrik generasi baru diukur untuk Scenario 3 & 4.** Scenario 1 & 2 belum:
+  `python scripts/evaluate_generation.py --scenarios 1,2` (±11 menit per skenario ber-rerank
+  di mesin ini).
+* **Groundedness 65–73% (target > 95%)**, dan penyebabnya tag yang hilang — bukan sitasi
+  palsu, karena citation precision 100%. Memperketat prompt agar setiap kalimat wajib
+  bertag adalah perbaikan berikutnya yang paling murah.
+* **Refusal accuracy belum bisa diandalkan** karena hanya ada satu negative control. Menambah
+  pertanyaan control perlu supaya angkanya punya arti.
+* **Target TTFT < 2,5 s belum realistis di stack ini**: LLM sampai token pertama saja 4,1 s
+  (Scenario 4, tanpa reranker) dan reranker lokal menambah ~54 s. Perlu endpoint LLM yang lebih
+  cepat **dan** Cohere API atau GPU.
+* **Ragas** masih opsional dan belum dijalankan — padahal temuan 9 menunjukkan metrik
+  deterministik saja tidak cukup.
 * **8 pertanyaan itu sampel kecil.** Beda di bawah ~0,1 sebaiknya dianggap indikatif.
 
 ---

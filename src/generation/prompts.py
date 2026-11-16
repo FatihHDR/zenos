@@ -56,8 +56,13 @@ def build_user_message(query: str, context: str) -> str:
     return f"CONTEXT:\n{context}\n\nQUESTION: {query}"
 
 
-def _citation_index(chunks: List[RerankResult]) -> Dict[Tuple[str, int], str]:
-    """Map ``(source_name_lower, page_number)`` -> chunk_id (first match wins)."""
+def citation_index(chunks: List[RerankResult]) -> Dict[Tuple[str, int], str]:
+    """Map ``(source_name_lower, page_number)`` -> chunk_id (first match wins).
+
+    This is the ground truth for citation validation: a tag is only valid when its
+    ``(source, page)`` pair appears here, i.e. it points at a chunk that was really
+    supplied to the model.
+    """
     index: Dict[Tuple[str, int], str] = {}
     for chunk in chunks:
         source = str(chunk.payload.get("source_name", "")).strip().lower()
@@ -76,7 +81,7 @@ def extract_citations(answer_text: str, chunks: List[RerankResult]) -> List[Cita
     that was actually provided in the context; it is then resolved to that
     chunk's ``chunk_id``.
     """
-    index = _citation_index(chunks)
+    index = citation_index(chunks)
     citations: List[Citation] = []
     seen: set = set()
 
